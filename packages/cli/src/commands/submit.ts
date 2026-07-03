@@ -1,5 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { exec } from 'child_process';
+import http from 'node:http';
 import {
   createEmptySpec,
   EXIT_CODES,
@@ -17,6 +19,57 @@ import {
 import { ensureServer } from '../server/index.js';
 import { openBrowser } from '../utils/browser.js';
 import { fillSpecFromAnalysis } from '../engine/parser.js';
+
+function waitForServer(port: number, timeoutMs = 10000): Promise<boolean> {
+  const start = Date.now();
+  return new Promise((resolve) => {
+    function check() {
+      const req = http.get(`http://localhost:${port}/api/tasks`, (res) => {
+        res.resume();
+        resolve(true);
+      });
+      req.on('error', () => {
+        if (Date.now() - start > timeoutMs) {
+          resolve(false);
+        } else {
+          setTimeout(check, 300);
+        }
+      });
+      req.setTimeout(1000, () => {
+        req.destroy();
+        if (Date.now() - start > timeoutMs) {
+          resolve(false);
+        } else {
+          setTimeout(check, 300);
+        }
+      });
+    }
+    check();
+  });
+}
+
+function isPortAvailable(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const req = http.get(`http://localhost:${port}/api/tasks`, (res) => {
+      res.resume();
+      resolve(false); // port is in use = not available
+    });
+    req.on('error', () => {
+      resolve(true); // can't connect = available
+    });
+    req.setTimeout(1500, () => {
+      req.destroy();
+      resolve(true);
+    });
+  });
+}
+
+function startDetachedServer(port: number): void {
+  const cliPath = process.argv[1];
+  exec(`cmd /c start /b "" "${process.execPath}" "${cliPath}" __serve --port ${port}`, {
+    windowsHide: true,
+  });
+}
 
 export function createSubmitCommand(): Command {
   return new Command('submit')
@@ -41,7 +94,7 @@ export function createSubmitCommand(): Command {
       } = options;
 
       const timeout = parseInt(timeoutStr, 10);
-      const port = portStr ? parseInt(portStr, 10) : undefined;
+      const requestedPort = portStr ? parseInt(portStr, 10) : 5678;
       const basePath = getStorageBasePath();
 
       // 1. 写入原始输入
@@ -62,7 +115,26 @@ export function createSubmitCommand(): Command {
       writeStatus(taskId, 'pending', basePath);
 
       // 4. 启动 HTTP Server
-      const serverPort = await ensureServer(port);
+      let serverPort: number;
+
+      if (!shouldWait) {
+        // --no-wait: 检查是否已有 server 运行，没有则 detached 启动
+        const available = await isPortAvailable(requestedPort);
+        if (available) {
+          startDetachedServer(requestedPort);
+          const ready = await waitForServer(requestedPort, 8000);
+          if (!ready) {
+            console.log(chalk.red(`\n❌ Server 启动失败，请手动运行:`));
+            console.log(chalk.gray(`   node ... __serve --port ${requestedPort}`));
+            process.exit(1);
+          }
+        }
+        serverPort = requestedPort;
+      } else {
+        // --wait: 直接在当前进程启动 server（需要阻塞等待）
+        serverPort = await ensureServer(requestedPort);
+      }
+
       const panelUrl = `http://localhost:${serverPort}/task/${taskId}`;
 
       console.log(chalk.green(`\n✅ 规约已创建: ${taskId}`));
@@ -75,9 +147,6 @@ export function createSubmitCommand(): Command {
       if (!shouldWait) {
         console.log(chalk.gray(`\n⏩ Server 已启动（--no-wait 模式）`));
         console.log(chalk.gray(`   面板: ${panelUrl}`));
-        console.log(chalk.gray(`   按 Ctrl+C 停止 Server`));
-        // 不 exit——让 Server 保持进程存活
-        // Agent 可以后台运行此命令，Server 持续提供服务
         return;
       }
 
@@ -103,16 +172,20 @@ export function createSubmitCommand(): Command {
           const currentStatus = statusData.status;
 
           if (currentStatus === 'confirmed') {
-            // 用户已确认
+            // 用户已确认：立即输出 JSON 给 Agent，但保持 Server 存活 10 秒
             const finalSpec = readSpec(taskId, basePath);
             console.log(chalk.green(`\n✅ 用户已确认规约！`));
             console.log(JSON.stringify(finalSpec, null, 2));
-            process.exit(EXIT_CODES.CONFIRMED);
+            console.log(chalk.gray(`\n🕐 Server 将在 10 秒后关闭，此期间仍可访问面板查看结果`));
+            setTimeout(() => process.exit(EXIT_CODES.CONFIRMED), 10000);
+            return;
           }
 
           if (currentStatus === 'cancelled') {
             console.log(chalk.red(`\n❌ 用户已取消`));
-            process.exit(EXIT_CODES.CANCELLED);
+            console.log(chalk.gray(`\n🕐 Server 将在 5 秒后关闭`));
+            setTimeout(() => process.exit(EXIT_CODES.CANCELLED), 5000);
+            return;
           }
 
           // 状态变化时打印提示

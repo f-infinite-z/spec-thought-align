@@ -9,6 +9,7 @@ import { createConfigCommand } from './commands/config.js';
 import { createSplitCommand } from './commands/split.js';
 import { createStartCommand } from './commands/start.js';
 import { createVerifyCommand } from './commands/verify.js';
+import { createServeCommand } from './commands/__serve.js';
 
 const program = new Command();
 
@@ -26,5 +27,6 @@ program.addCommand(createSplitCommand());
 program.addCommand(createStartCommand());
 program.addCommand(createVerifyCommand());
 program.addCommand(createConfigCommand());
+program.addCommand(createServeCommand(), { hidden: true });
 
 program.parse(process.argv);

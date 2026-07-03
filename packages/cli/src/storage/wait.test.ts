@@ -9,7 +9,7 @@ describe('submit --wait polling', () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spec-align-wait-'));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spec-thought-align-wait-'));
   });
 
   afterEach(() => {

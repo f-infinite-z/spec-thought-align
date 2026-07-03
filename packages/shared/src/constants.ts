@@ -8,7 +8,7 @@ export const DEFAULT_CONFIG: SpecAlignConfig = {
     host: '127.0.0.1',
   },
   storage: {
-    path: '.spec-align',
+    path: '.spec-thought-align',
   },
   llm: {
     provider: 'openai',
@@ -23,7 +23,7 @@ export const DEFAULT_CONFIG: SpecAlignConfig = {
 
 // ---- 存储相关 ----
 
-export const STORAGE_DIR = '.spec-align';
+export const STORAGE_DIR = '.spec-thought-align';
 
 export const INPUT_FILE = 'input.json';
 export const SPEC_FILE = 'spec.json';

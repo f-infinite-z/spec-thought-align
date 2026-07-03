@@ -19,7 +19,7 @@ describe('storage', () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spec-align-test-'));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spec-thought-align-test-'));
   });
 
   afterEach(() => {
@@ -27,10 +27,10 @@ describe('storage', () => {
   });
 
   describe('ensureTaskDir', () => {
-    it('creates task directory under .spec-align/', () => {
+    it('creates task directory under .spec-thought-align/', () => {
       const dir = ensureTaskDir('test-task', tmpDir);
       expect(fs.existsSync(dir)).toBe(true);
-      expect(dir).toContain('.spec-align');
+      expect(dir).toContain('.spec-thought-align');
       expect(dir).toContain('test-task');
     });
   });

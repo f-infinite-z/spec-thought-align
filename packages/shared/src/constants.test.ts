@@ -26,7 +26,7 @@ describe('createEmptySpec', () => {
 });
 
 describe('STORAGE_DIR', () => {
-  it('is .spec-align', () => {
-    expect(STORAGE_DIR).toBe('.spec-align');
+  it('is .spec-thought-align', () => {
+    expect(STORAGE_DIR).toBe('.spec-thought-align');
   });
 });

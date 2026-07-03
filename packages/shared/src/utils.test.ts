@@ -23,7 +23,7 @@ describe('nowISO', () => {
 
 describe('joinPath', () => {
   it('joins parts with /', () => {
-    expect(joinPath('.spec-align', 'task-001')).toBe('.spec-align/task-001');
+    expect(joinPath('.spec-thought-align', 'task-001')).toBe('.spec-thought-align/task-001');
     expect(joinPath('/a/', '/b/')).toBe('/a/b/');
   });
 });

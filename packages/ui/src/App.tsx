@@ -116,6 +116,13 @@ export default function App() {
 
   const handleConfirm = async () => {
     if (!displayTaskId) return;
+
+    // 清除待处理的自动保存，防止与确认保存冲突
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+      debounceTimer.current = null;
+    }
+
     setSaving(true);
     try {
       await api(`/api/task/${displayTaskId}/spec`, {
@@ -124,8 +131,9 @@ export default function App() {
       });
       await api(`/api/task/${displayTaskId}/confirm`, { method: 'POST' });
       setConfirmed(true);
+      toast.success(t('confirmedBanner'));
     } catch (e: any) {
-      setError(e.message);
+      toast.error(e.message || t('saveFailed'));
     } finally {
       setSaving(false);
     }

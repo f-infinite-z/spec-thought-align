@@ -19,7 +19,7 @@ export function openFloatWindow(taskId: string) {
   const path = window.location.pathname;
   window.open(
     `${origin}${path}?id=${taskId}&float=1`,
-    'spec-align-float',
+    'spec-thought-align-float',
     'width=820,height=920,left=40,top=40,toolbar=no,menubar=no,location=no,status=no,resizable=yes',
   );
 }

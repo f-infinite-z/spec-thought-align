@@ -31,7 +31,7 @@ export function createSplitCommand(): Command {
           );
         }
 
-        console.log(chalk.gray(`\n清单已保存: .spec-align/${id}/tasks.json`));
+        console.log(chalk.gray(`\n清单已保存: .spec-thought-align/${id}/tasks.json`));
         console.log(
           chalk.gray(`子任务上下文提取: npx spec-thought-align start --id ${id} --sub <subId>`),
         );

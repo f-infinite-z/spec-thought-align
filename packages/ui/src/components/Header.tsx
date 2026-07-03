@@ -36,7 +36,7 @@ export function Header({
   const toggleLang = () => {
     const next = i18n.language === 'zh-CN' ? 'en' : 'zh-CN';
     i18n.changeLanguage(next);
-    localStorage.setItem('spec-align-lang', next);
+    localStorage.setItem('spec-thought-align-lang', next);
   };
 
   return (

@@ -38,7 +38,7 @@ var STORAGE_DIR, INPUT_FILE, SPEC_FILE, STATUS_FILE, TASKS_FILE, EXIT_CODES, DEF
 var init_constants = __esm({
   "packages/shared/src/constants.ts"() {
     "use strict";
-    STORAGE_DIR = ".spec-align";
+    STORAGE_DIR = ".spec-thought-align";
     INPUT_FILE = "input.json";
     SPEC_FILE = "spec.json";
     STATUS_FILE = "status.json";
@@ -208,13 +208,15 @@ var init_storage = __esm({
 });
 
 // packages/cli/src/index.ts
-import { Command as Command10 } from "commander";
+import { Command as Command11 } from "commander";
 
 // packages/cli/src/commands/submit.ts
 init_src();
 init_storage();
 import { Command } from "commander";
 import chalk from "chalk";
+import { exec as exec2 } from "child_process";
+import http from "node:http";
 
 // packages/cli/src/server/index.ts
 init_src();
@@ -242,10 +244,7 @@ function serveUiPage(taskId) {
     return `<!DOCTYPE html><html><body><h1>UI \u672A\u6784\u5EFA</h1><p>\u8BF7\u5148\u8FD0\u884C: cd packages/ui && npx vite build</p></body></html>`;
   }
   const html = fs2.readFileSync(indexPath, "utf-8");
-  return html.replace(
-    "</head>",
-    `<script>window.TASK_ID="${taskId}";</script></head>`
-  );
+  return html.replace("</head>", `<script>window.TASK_ID="${taskId}";</script></head>`);
 }
 async function ensureServer(requestedPort) {
   if (server && currentPort > 0) {
@@ -328,13 +327,11 @@ async function ensureServer(requestedPort) {
   const port = requestedPort || 5678;
   return new Promise((resolve, reject) => {
     const tryPort = (p) => {
-      const s = serve(
-        { fetch: app.fetch, port: p },
-        (info) => {
-          currentPort = info.port;
-          resolve(info.port);
-        }
-      );
+      const s = serve({ fetch: app.fetch, port: p }, (info) => {
+        currentPort = info.port;
+        server = s;
+        resolve(info.port);
+      });
       s.on("error", (err) => {
         if (err.code === "EADDRINUSE" && !requestedPort) {
           tryPort(p + 1);
@@ -541,7 +538,9 @@ function parseAnalysis(analysis, request) {
     }
   }
   result.questions = mergeFragmentedQuestions(result.questions);
-  result.assumptions = result.assumptions.filter((a) => a.text.length > 3 && !isSectionHeader(a.text));
+  result.assumptions = result.assumptions.filter(
+    (a) => a.text.length > 3 && !isSectionHeader(a.text)
+  );
   if (!result.goal && segments.length > 0) {
     result.goal = segments[0].text;
   }
@@ -585,7 +584,9 @@ function splitIntoSegments(text) {
   return segments;
 }
 var PAREN_WRAPPED_REGEX = new RegExp("^[\uFF08(].+[\uFF09)]$");
-var SECTION_HEADER_REGEX = new RegExp("^(\u4E0D\u786E\u5B9A|\u6280\u672F\u65B9\u6848|\u4E0D\u505A|\u9ED8\u8BA4\u5047\u8BBE|\u9700\u8981\u786E\u8BA4|\u4EE5\u4E0B|\u7406\u89E3\u9700\u8981)[\u7684\uFF1A:\\s]*$");
+var SECTION_HEADER_REGEX = new RegExp(
+  "^(\u4E0D\u786E\u5B9A|\u6280\u672F\u65B9\u6848|\u4E0D\u505A|\u9ED8\u8BA4\u5047\u8BBE|\u9700\u8981\u786E\u8BA4|\u4EE5\u4E0B|\u7406\u89E3\u9700\u8981)[\u7684\uFF1A:\\s]*$"
+);
 var I_UNDERSTAND_REGEX = new RegExp("^\u6211\u7406\u89E3");
 var UNCERTAIN_COLON_REGEX = new RegExp("^\u4E0D\u786E\u5B9A[\uFF1A:]\\s*(.+)");
 var UNCERTAIN_SPACE_REGEX = new RegExp("^\u4E0D\u786E\u5B9A\\s*(.+)");
@@ -644,14 +645,18 @@ function extractGoal(segments, request) {
       }
     }
   }
-  const firstPara = segments.find((s) => !s.isHeader && s.text.length > 8 && !/^\d+[.)、]\s*/.test(s.text) && !/^(以下|方案|根因|实际|例如|故|所谓)/.test(s.text) && !s.text.endsWith("\uFF1A") && !s.text.endsWith(":"));
+  const firstPara = segments.find(
+    (s) => !s.isHeader && s.text.length > 8 && !/^\d+[.)、]\s*/.test(s.text) && !/^(以下|方案|根因|实际|例如|故|所谓)/.test(s.text) && !s.text.endsWith("\uFF1A") && !s.text.endsWith(":")
+  );
   if (firstPara && firstPara.text.length > 5) {
     return firstPara.text.length > 80 ? firstPara.text.slice(0, 80) + "..." : firstPara.text;
   }
   return request || "";
 }
 function extractContext(segments) {
-  const contextParts = segments.filter((s) => s.type === "paragraph" && !s.isHeader && s.text.length > 10 && !isSectionHeader(s.text) && !s.text.endsWith("\uFF1F") && !s.text.endsWith("?") && !/^[/、，,•·]/.test(s.text) && !/^(或[者]?|还是|还有|以及)/.test(s.text)).slice(0, 3).map((s) => s.text);
+  const contextParts = segments.filter(
+    (s) => s.type === "paragraph" && !s.isHeader && s.text.length > 10 && !isSectionHeader(s.text) && !s.text.endsWith("\uFF1F") && !s.text.endsWith("?") && !/^[/、，,•·]/.test(s.text) && !/^(或[者]?|还是|还有|以及)/.test(s.text)
+  ).slice(0, 3).map((s) => s.text);
   return contextParts.join("\uFF1B");
 }
 var ASSUMPTION_PATTERNS = [
@@ -681,11 +686,23 @@ function detectConfidence(text) {
   const lower = text.toLowerCase();
   if (HIGH_CONFIDENCE_WORDS.some((w) => lower.includes(w))) return "high";
   if (LOW_CONFIDENCE_WORDS.some((w) => lower.includes(w))) return "low";
-  if (lower.includes("\u53EF\u80FD") || lower.includes("\u5E94\u8BE5") || lower.includes("\u901A\u5E38") || lower.includes("\u4E00\u822C")) return "medium";
+  if (lower.includes("\u53EF\u80FD") || lower.includes("\u5E94\u8BE5") || lower.includes("\u901A\u5E38") || lower.includes("\u4E00\u822C"))
+    return "medium";
   return "medium";
 }
 var HIGH_CONFIDENCE_WORDS = ["\u80AF\u5B9A", "\u786E\u5B9A", "\u663E\u7136", "\u5C31\u662F", "\u5DF2\u7ECF", "\u4E00\u5B9A"];
-var LOW_CONFIDENCE_WORDS = ["\u4E0D\u786E\u5B9A", "\u4E0D\u6E05\u695A", "\u6CA1\u63D0\u5230", "\u6CA1\u8BF4", "\u4E5F\u8BB8", "\u53EF\u80FD\u5427", "\u4E0D\u77E5\u9053", "\u731C\u6D4B", "\u5927\u6982", "\u4F30\u8BA1"];
+var LOW_CONFIDENCE_WORDS = [
+  "\u4E0D\u786E\u5B9A",
+  "\u4E0D\u6E05\u695A",
+  "\u6CA1\u63D0\u5230",
+  "\u6CA1\u8BF4",
+  "\u4E5F\u8BB8",
+  "\u53EF\u80FD\u5427",
+  "\u4E0D\u77E5\u9053",
+  "\u731C\u6D4B",
+  "\u5927\u6982",
+  "\u4F30\u8BA1"
+];
 function hasModerateConfidence(text) {
   const lower = text.toLowerCase();
   return ["\u53EF\u80FD", "\u5E94\u8BE5", "\u901A\u5E38", "\u4E00\u822C", "\u5927\u6982", "\u4F30\u8BA1"].some((w) => lower.includes(w));
@@ -798,11 +815,60 @@ function fillSpecFromAnalysis(spec, _request) {
   if (spec.questions.length === 0) spec.questions = parsed.questions;
   if (spec.plan.techStack.length === 0) spec.plan.techStack = parsed.techStack;
   if (!spec.plan.architecture && parsed.architecture) spec.plan.architecture = parsed.architecture;
-  if (spec.io.acceptanceCriteria.length === 0) spec.io.acceptanceCriteria = parsed.acceptanceCriteria;
+  if (spec.io.acceptanceCriteria.length === 0)
+    spec.io.acceptanceCriteria = parsed.acceptanceCriteria;
   return spec;
 }
 
 // packages/cli/src/commands/submit.ts
+function waitForServer(port, timeoutMs = 1e4) {
+  const start = Date.now();
+  return new Promise((resolve) => {
+    function check() {
+      const req = http.get(`http://localhost:${port}/api/tasks`, (res) => {
+        res.resume();
+        resolve(true);
+      });
+      req.on("error", () => {
+        if (Date.now() - start > timeoutMs) {
+          resolve(false);
+        } else {
+          setTimeout(check, 300);
+        }
+      });
+      req.setTimeout(1e3, () => {
+        req.destroy();
+        if (Date.now() - start > timeoutMs) {
+          resolve(false);
+        } else {
+          setTimeout(check, 300);
+        }
+      });
+    }
+    check();
+  });
+}
+function isPortAvailable(port) {
+  return new Promise((resolve) => {
+    const req = http.get(`http://localhost:${port}/api/tasks`, (res) => {
+      res.resume();
+      resolve(false);
+    });
+    req.on("error", () => {
+      resolve(true);
+    });
+    req.setTimeout(1500, () => {
+      req.destroy();
+      resolve(true);
+    });
+  });
+}
+function startDetachedServer(port) {
+  const cliPath = process.argv[1];
+  exec2(`cmd /c start /b "" "${process.execPath}" "${cliPath}" __serve --port ${port}`, {
+    windowsHide: true
+  });
+}
 function createSubmitCommand() {
   return new Command("submit").description("\u63D0\u4EA4\u9700\u6C42\u89C4\u7EA6\u5E76\u7B49\u5F85\u7528\u6237\u786E\u8BA4").requiredOption("--id <id>", "\u4EFB\u52A1\u552F\u4E00\u6807\u8BC6").requiredOption("--request <text>", "\u7528\u6237\u539F\u59CB\u9700\u6C42").requiredOption("--analysis <text>", "Agent \u7684\u601D\u8003\u5206\u6790").option("--wait", "\u963B\u585E\u7B49\u5F85\u7528\u6237\u786E\u8BA4", true).option("--no-wait", "\u7ACB\u5373\u8FD4\u56DE\uFF0C\u4E0D\u7B49\u5F85").option("--timeout <seconds>", "\u8D85\u65F6\u79D2\u6570", String(DEFAULT_TIMEOUT_SECONDS)).option("--port <port>", "\u6307\u5B9A HTTP Server \u7AEF\u53E3").option("--agent-type <type>", "\u6765\u6E90 Agent \u7C7B\u578B (cline/cursor/aider/...)").action(async (options) => {
     const {
@@ -815,7 +881,7 @@ function createSubmitCommand() {
       agentType
     } = options;
     const timeout = parseInt(timeoutStr, 10);
-    const port = portStr ? parseInt(portStr, 10) : void 0;
+    const requestedPort = portStr ? parseInt(portStr, 10) : 5678;
     const basePath = getStorageBasePath();
     console.log(chalk.blue(`
 \u{1F4CB} Spec-Align: ${taskId}`));
@@ -827,7 +893,23 @@ function createSubmitCommand() {
     fillSpecFromAnalysis(spec);
     writeSpec(taskId, spec, basePath);
     writeStatus(taskId, "pending", basePath);
-    const serverPort = await ensureServer(port);
+    let serverPort;
+    if (!shouldWait) {
+      const available = await isPortAvailable(requestedPort);
+      if (available) {
+        startDetachedServer(requestedPort);
+        const ready = await waitForServer(requestedPort, 8e3);
+        if (!ready) {
+          console.log(chalk.red(`
+\u274C Server \u542F\u52A8\u5931\u8D25\uFF0C\u8BF7\u624B\u52A8\u8FD0\u884C:`));
+          console.log(chalk.gray(`   node ... __serve --port ${requestedPort}`));
+          process.exit(1);
+        }
+      }
+      serverPort = requestedPort;
+    } else {
+      serverPort = await ensureServer(requestedPort);
+    }
     const panelUrl = `http://localhost:${serverPort}/task/${taskId}`;
     console.log(chalk.green(`
 \u2705 \u89C4\u7EA6\u5DF2\u521B\u5EFA: ${taskId}`));
@@ -837,7 +919,6 @@ function createSubmitCommand() {
       console.log(chalk.gray(`
 \u23E9 Server \u5DF2\u542F\u52A8\uFF08--no-wait \u6A21\u5F0F\uFF09`));
       console.log(chalk.gray(`   \u9762\u677F: ${panelUrl}`));
-      console.log(chalk.gray(`   \u6309 Ctrl+C \u505C\u6B62 Server`));
       return;
     }
     console.log(chalk.yellow(`
@@ -860,12 +941,18 @@ function createSubmitCommand() {
           console.log(chalk.green(`
 \u2705 \u7528\u6237\u5DF2\u786E\u8BA4\u89C4\u7EA6\uFF01`));
           console.log(JSON.stringify(finalSpec, null, 2));
-          process.exit(EXIT_CODES.CONFIRMED);
+          console.log(chalk.gray(`
+\u{1F550} Server \u5C06\u5728 10 \u79D2\u540E\u5173\u95ED\uFF0C\u6B64\u671F\u95F4\u4ECD\u53EF\u8BBF\u95EE\u9762\u677F\u67E5\u770B\u7ED3\u679C`));
+          setTimeout(() => process.exit(EXIT_CODES.CONFIRMED), 1e4);
+          return;
         }
         if (currentStatus === "cancelled") {
           console.log(chalk.red(`
 \u274C \u7528\u6237\u5DF2\u53D6\u6D88`));
-          process.exit(EXIT_CODES.CANCELLED);
+          console.log(chalk.gray(`
+\u{1F550} Server \u5C06\u5728 5 \u79D2\u540E\u5173\u95ED`));
+          setTimeout(() => process.exit(EXIT_CODES.CANCELLED), 5e3);
+          return;
         }
         if (currentStatus !== lastStatus) {
           lastStatus = currentStatus;
@@ -1135,7 +1222,9 @@ function inferDependencies(manifest) {
     const hasAPI = apiKeywords.some((k) => lower.includes(k.toLowerCase()));
     const hasUI = uiKeywords.some((k) => lower.includes(k.toLowerCase()));
     if (hasAPI) {
-      st.dependencies = manifest.subtasks.filter((s) => dbsKeywords.some((k) => s.description.toLowerCase().includes(k.toLowerCase()))).map((s) => s.id);
+      st.dependencies = manifest.subtasks.filter(
+        (s) => dbsKeywords.some((k) => s.description.toLowerCase().includes(k.toLowerCase()))
+      ).map((s) => s.id);
     }
     if (hasUI) {
       st.dependencies = manifest.subtasks.filter(
@@ -1170,8 +1259,10 @@ function createSplitCommand() {
         );
       }
       console.log(chalk6.gray(`
-\u6E05\u5355\u5DF2\u4FDD\u5B58: .spec-align/${id}/tasks.json`));
-      console.log(chalk6.gray(`\u5B50\u4EFB\u52A1\u4E0A\u4E0B\u6587\u63D0\u53D6: npx spec-thought-align start --id ${id} --sub <subId>`));
+\u6E05\u5355\u5DF2\u4FDD\u5B58: .spec-thought-align/${id}/tasks.json`));
+      console.log(
+        chalk6.gray(`\u5B50\u4EFB\u52A1\u4E0A\u4E0B\u6587\u63D0\u53D6: npx spec-thought-align start --id ${id} --sub <subId>`)
+      );
     } catch (e) {
       console.error(chalk6.red(e.message));
       process.exit(1);
@@ -1255,14 +1346,20 @@ function createVerifyCommand() {
       const totalCriteria = spec.io.acceptanceCriteria.length;
       console.log(chalk8.gray(`\u603B\u9A8C\u6536\u6807\u51C6: ${totalCriteria} \u6761`));
       console.log(chalk8.green(`\u5DF2\u901A\u8FC7: ${passed.length} \u6761`));
-      console.log(chalk8.yellow(`\u5F85\u68C0\u67E5: ${unchecked.length + (pending.length > 0 ? pending.length : 0) * 2} \u6761`));
+      console.log(
+        chalk8.yellow(
+          `\u5F85\u68C0\u67E5: ${unchecked.length + (pending.length > 0 ? pending.length : 0) * 2} \u6761`
+        )
+      );
       if (failed.length > 0) console.log(chalk8.red(`\u5931\u8D25: ${failed.length} \u9879`));
       console.log(`
 ${chalk8.bold("\u5B50\u4EFB\u52A1\u72B6\u6001:")}`);
       for (const st of toCheck) {
         const icon = st.status === "done" ? "\u2705" : st.status === "failed" ? "\u274C" : st.status === "in-progress" ? "\u{1F504}" : "\u23F3";
         const depStr = st.dependencies.length > 0 ? chalk8.gray(` (\u4F9D\u8D56: ${st.dependencies.join(", ")})`) : "";
-        console.log(`  ${icon} ${chalk8.cyan(st.id)} ${st.status.padEnd(12)} ${st.description}${depStr}`);
+        console.log(
+          `  ${icon} ${chalk8.cyan(st.id)} ${st.status.padEnd(12)} ${st.description}${depStr}`
+        );
       }
       for (const st of done) {
         if (passed.length > 0) {
@@ -1304,8 +1401,19 @@ ${chalk8.bold("\u5B50\u4EFB\u52A1\u72B6\u6001:")}`);
   });
 }
 
+// packages/cli/src/commands/__serve.ts
+import { Command as Command10 } from "commander";
+function createServeCommand() {
+  return new Command10("__serve").description("(\u5185\u90E8) \u540E\u53F0\u542F\u52A8 HTTP Server").requiredOption("--port <port>", "\u7AEF\u53E3\u53F7").action(async (options) => {
+    const port = parseInt(options.port, 10);
+    await ensureServer(port);
+    setInterval(() => {
+    }, 6e4);
+  });
+}
+
 // packages/cli/src/index.ts
-var program = new Command10();
+var program = new Command11();
 program.name("spec-thought-align").description("AI Coding Agent \u65BD\u5DE5\u524D\u7684\u9700\u6C42\u89C4\u7EA6\u53EF\u89C6\u5316\u786E\u8BA4\u9762\u677F").version("0.1.0");
 program.addCommand(createSubmitCommand());
 program.addCommand(createFetchCommand());
@@ -1316,4 +1424,5 @@ program.addCommand(createSplitCommand());
 program.addCommand(createStartCommand());
 program.addCommand(createVerifyCommand());
 program.addCommand(createConfigCommand());
+program.addCommand(createServeCommand(), { hidden: true });
 program.parse(process.argv);

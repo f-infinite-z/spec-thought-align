@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { STORAGE_DIR } from '@spec-thought-align/shared';
 import { readSpec, writeSpec, readStatus, writeStatus } from '../storage/index.js';
 
-const server: Server | null = null;
+let server: Server | null = null;
 let currentPort = 0;
 
 /** UI 构建产物路径 */
@@ -134,6 +134,7 @@ export async function ensureServer(requestedPort?: number): Promise<number> {
     const tryPort = (p: number) => {
       const s = serve({ fetch: app.fetch, port: p }, (info) => {
         currentPort = info.port;
+        server = s as unknown as Server;
         resolve(info.port);
       });
       s.on('error', (err: NodeJS.ErrnoException) => {

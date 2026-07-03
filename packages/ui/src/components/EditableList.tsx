@@ -18,6 +18,8 @@ export function EditableList({
 }) {
   const { t } = useTranslation();
   const [newItem, setNewItem] = useState('');
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState('');
 
   const colorClasses: Record<string, string> = {
     green: 'text-green-600 border-green-500/20 bg-green-500/5',
@@ -34,6 +36,25 @@ export function EditableList({
 
   const remove = (idx: number) => {
     onChange(items.filter((_, i) => i !== idx));
+    if (editingIdx === idx) {
+      setEditingIdx(null);
+    }
+  };
+
+  const startEdit = (idx: number) => {
+    setEditingIdx(idx);
+    setEditValue(items[idx]);
+  };
+
+  const commitEdit = () => {
+    if (editingIdx === null) return;
+    const value = editValue.trim();
+    if (value) {
+      const updated = [...items];
+      updated[editingIdx] = value;
+      onChange(updated);
+    }
+    setEditingIdx(null);
   };
 
   return (
@@ -49,11 +70,33 @@ export function EditableList({
               colorClasses[color],
             )}
           >
-            <span>{item}</span>
+            {editingIdx === i && !readOnly ? (
+              <input
+                autoFocus
+                className="flex-1 bg-transparent border-none outline-none px-1 py-0 text-xs"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitEdit();
+                  if (e.key === 'Escape') setEditingIdx(null);
+                }}
+                onBlur={commitEdit}
+              />
+            ) : (
+              <span
+                className={cn('flex-1 cursor-text', readOnly && 'cursor-default')}
+                onClick={() => {
+                  if (!readOnly) startEdit(i);
+                }}
+                title={readOnly ? undefined : '点击编辑'}
+              >
+                {item}
+              </span>
+            )}
             {!readOnly && (
               <button
                 onClick={() => remove(i)}
-                className="text-slate-400 hover:text-red-500 ml-2 text-xs transition-colors"
+                className="text-slate-400 hover:text-red-500 ml-2 text-xs transition-colors shrink-0"
               >
                 ✕
               </button>
@@ -72,7 +115,7 @@ export function EditableList({
             }}
             placeholder={t('addItem')}
           />
-          <Button size="xs" variant="outline" onClick={add}>
+          <Button size="xs" variant="secondary" onClick={add}>
             +
           </Button>
         </div>
