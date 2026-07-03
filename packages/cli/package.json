@@ -1,0 +1,59 @@
+{
+  "name": "spec-thought-align",
+  "version": "0.1.0",
+  "description": "AI Coding Agent 施工前的需求规约可视化确认面板 —— 让 Agent 把思考摊开，确认无误再动工",
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "ai-agent",
+    "specification",
+    "requirement",
+    "alignment",
+    "cli",
+    "developer-tools",
+    "cursor",
+    "cline",
+    "aider",
+    "claude-code",
+    "coding-agent"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/f-infinite-z/spec-thought-align"
+  },
+  "bugs": {
+    "url": "https://github.com/f-infinite-z/spec-thought-align/issues"
+  },
+  "homepage": "https://github.com/f-infinite-z/spec-thought-align#readme",
+  "author": "Spec-Align",
+  "bin": {
+    "spec-thought-align": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node scripts/build.js",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "prepublishOnly": "node scripts/build.js"
+  },
+  "dependencies": {
+    "commander": "^12.0.0",
+    "chalk": "^5.3.0",
+    "ora": "^8.0.1",
+    "hono": "^4.0.0",
+    "@hono/node-server": "^1.13.0",
+    "open": "^10.0.0"
+  },
+  "devDependencies": {
+    "@spec-thought-align/shared": "workspace:*",
+    "@types/node": "^20.10.0",
+    "esbuild": "^0.21.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

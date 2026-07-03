@@ -1,0 +1,58 @@
+{
+  "name": "spec-thought-align",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI Coding Agent 施工前的需求规约可视化确认面板",
+  "license": "MIT",
+  "author": "Spec-Align",
+  "keywords": [
+    "ai-agent",
+    "specification",
+    "requirement",
+    "alignment",
+    "cli",
+    "developer-tools"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/f-infinite-z/spec-thought-align"
+  },
+  "bugs": {
+    "url": "https://github.com/f-infinite-z/spec-thought-align/issues"
+  },
+  "homepage": "https://github.com/f-infinite-z/spec-thought-align#readme",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint \"packages/cli/src\" \"packages/ui/src\" \"packages/shared/src\" --ext .ts,.tsx",
+    "format": "prettier --write \"packages/*/src/**/*.{ts,tsx,css}\"",
+    "clean": "rimraf packages/*/dist packages/*/node_modules node_modules",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.56.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.8",
+    "prettier": "^3.2.0",
+    "rimraf": "^5.0.5",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{css,json,md}": [
+      "prettier --write"
+    ]
+  }
+}
