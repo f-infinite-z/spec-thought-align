@@ -96,6 +96,4 @@ node scripts/build.js  # 构建 CLI + UI
 - [路线图](docs/roadmap.md)
 - [开发指南](CONTRIBUTING.md)
 
-## License
-
-MIT
+MIT © 2026 f-infinite-z

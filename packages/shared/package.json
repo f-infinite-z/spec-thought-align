@@ -2,6 +2,8 @@
   "name": "@spec-thought-align/shared",
   "version": "0.1.0",
   "private": true,
+  "author": "f-infinite-z",
+  "license": "MIT",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",

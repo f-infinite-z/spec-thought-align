@@ -935,6 +935,6 @@ npx spec-thought-align mock --id "demo-001"
 ---
 
 > **最后更新**: 2026-07-02
-> **作者**: Spec-Align Team
+> **作者**: f-infinite-z
 > **License**: MIT
 ```
