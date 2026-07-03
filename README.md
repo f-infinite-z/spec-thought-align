@@ -80,7 +80,7 @@ config    # 查看/修改配置
 ## 开发
 
 ```bash
-git clone https://github.com/spec-thought-align
+git clone https://github.com/f-infinite-z/spec-thought-align.git
 cd spec-thought-align
 pnpm install
 pnpm test          # 36 tests

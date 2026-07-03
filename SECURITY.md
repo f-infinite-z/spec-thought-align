@@ -10,4 +10,4 @@
 
 If you discover a security vulnerability, please **do not** open a public issue.
 
-Email us at [TODO: security contact email] with details. We will respond within 48 hours and work on a fix.
+Report vulnerabilities via GitHub Security Advisory at https://github.com/f-infinite-z/spec-thought-align/security/advisories/new. We will respond within 48 hours and work on a fix.

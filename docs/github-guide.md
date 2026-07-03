@@ -330,7 +330,7 @@ Core features:
 "
 
 # 关联远程仓库
-git remote add origin https://github.com/spec-thought-align/spec-align.git
+git remote add origin https://github.com/f-infinite-z/spec-thought-align.git
 git push -u origin main
 ```
 
