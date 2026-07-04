@@ -13,6 +13,7 @@ import {
   SPEC_FILE,
   STATUS_FILE,
   TASKS_FILE,
+  RESULT_FILE,
 } from '@spec-thought-align/shared';
 
 /**
@@ -170,6 +171,20 @@ export function updateSubTask(
   if (idx === -1) throw new Error(`子任务不存在: ${subId}`);
   manifest.subtasks[idx] = { ...manifest.subtasks[idx], ...update };
   writeTaskManifest(taskId, manifest, basePath);
+}
+
+/** 写入最终结果（用户确认后的完整 spec） */
+export function writeResult(taskId: string, spec: Spec, basePath = '.'): void {
+  const dir = ensureTaskDir(taskId, basePath);
+  const filePath = path.join(dir, RESULT_FILE);
+  fs.writeFileSync(filePath, JSON.stringify(spec, null, 2), 'utf-8');
+}
+
+/** 读取最终结果 */
+export function readResult(taskId: string, basePath = '.'): Spec | null {
+  const filePath = path.join(basePath, STORAGE_DIR, taskId, RESULT_FILE);
+  if (!fs.existsSync(filePath)) return null;
+  return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as Spec;
 }
 
 /** 获取子任务状态列表 */

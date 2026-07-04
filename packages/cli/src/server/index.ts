@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { STORAGE_DIR } from '@spec-thought-align/shared';
-import { readSpec, writeSpec, readStatus, writeStatus } from '../storage/index.js';
+import { readSpec, writeSpec, readStatus, writeStatus, writeResult } from '../storage/index.js';
 
 let server: Server | null = null;
 let currentPort = 0;
@@ -100,6 +100,7 @@ export async function ensureServer(requestedPort?: number): Promise<number> {
       spec.meta.status = 'confirmed';
       spec.meta.confirmedAt = new Date().toISOString();
       writeSpec(taskId, spec);
+      writeResult(taskId, spec);
       return c.json({ success: true, message: '已确认' });
     } catch (err) {
       console.error(`[server] POST /api/task/${taskId}/confirm error:`, err);

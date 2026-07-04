@@ -29,6 +29,7 @@ export const INPUT_FILE = 'input.json';
 export const SPEC_FILE = 'spec.json';
 export const STATUS_FILE = 'status.json';
 export const TASKS_FILE = 'tasks.json';
+export const RESULT_FILE = 'result.json';
 
 // ---- 退出码 ----
 

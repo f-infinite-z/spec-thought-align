@@ -34,7 +34,7 @@ function createEmptySpec(id, request, analysis, agentType) {
     userAdditions: { notes: "", fieldEdits: [] }
   };
 }
-var STORAGE_DIR, INPUT_FILE, SPEC_FILE, STATUS_FILE, TASKS_FILE, EXIT_CODES, DEFAULT_TIMEOUT_SECONDS, POLL_INTERVAL_MS;
+var STORAGE_DIR, INPUT_FILE, SPEC_FILE, STATUS_FILE, TASKS_FILE, RESULT_FILE, EXIT_CODES, DEFAULT_TIMEOUT_SECONDS, POLL_INTERVAL_MS;
 var init_constants = __esm({
   "packages/shared/src/constants.ts"() {
     "use strict";
@@ -43,6 +43,7 @@ var init_constants = __esm({
     SPEC_FILE = "spec.json";
     STATUS_FILE = "status.json";
     TASKS_FILE = "tasks.json";
+    RESULT_FILE = "result.json";
     EXIT_CODES = {
       CONFIRMED: 0,
       TIMEOUT: 1,
@@ -87,12 +88,14 @@ __export(storage_exports, {
   getSubTaskStatus: () => getSubTaskStatus,
   listTasks: () => listTasks,
   readInput: () => readInput,
+  readResult: () => readResult,
   readSpec: () => readSpec,
   readStatus: () => readStatus,
   readTaskManifest: () => readTaskManifest,
   taskExists: () => taskExists,
   updateSubTask: () => updateSubTask,
   writeInput: () => writeInput,
+  writeResult: () => writeResult,
   writeSpec: () => writeSpec,
   writeStatus: () => writeStatus,
   writeTaskManifest: () => writeTaskManifest
@@ -188,6 +191,16 @@ function updateSubTask(taskId, subId, update, basePath = ".") {
   manifest.subtasks[idx] = { ...manifest.subtasks[idx], ...update };
   writeTaskManifest(taskId, manifest, basePath);
 }
+function writeResult(taskId, spec, basePath = ".") {
+  const dir = ensureTaskDir(taskId, basePath);
+  const filePath = path.join(dir, RESULT_FILE);
+  fs.writeFileSync(filePath, JSON.stringify(spec, null, 2), "utf-8");
+}
+function readResult(taskId, basePath = ".") {
+  const filePath = path.join(basePath, STORAGE_DIR, taskId, RESULT_FILE);
+  if (!fs.existsSync(filePath)) return null;
+  return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+}
 function getSubTaskStatus(taskId, basePath = ".") {
   const manifest = readTaskManifest(taskId, basePath);
   if (!manifest) return [];
@@ -208,7 +221,7 @@ var init_storage = __esm({
 });
 
 // packages/cli/src/index.ts
-import { Command as Command11 } from "commander";
+import { Command as Command12 } from "commander";
 
 // packages/cli/src/commands/submit.ts
 init_src();
@@ -299,6 +312,7 @@ async function ensureServer(requestedPort) {
       spec.meta.status = "confirmed";
       spec.meta.confirmedAt = (/* @__PURE__ */ new Date()).toISOString();
       writeSpec(taskId, spec);
+      writeResult(taskId, spec);
       return c.json({ success: true, message: "\u5DF2\u786E\u8BA4" });
     } catch (err) {
       console.error(`[server] POST /api/task/${taskId}/confirm error:`, err);
@@ -383,6 +397,81 @@ async function openBrowser(url) {
       resolve();
     });
   });
+}
+
+// packages/cli/src/utils/agent.ts
+var PROFILES = {
+  opencode: {
+    id: "opencode",
+    name: "opencode",
+    knownForTimeout: false,
+    recommendedStrategy: "wait"
+  },
+  "claude-code": {
+    id: "claude-code",
+    name: "Claude Code / OpenClaw",
+    knownForTimeout: true,
+    recommendedStrategy: "no-wait",
+    knownTimeoutSeconds: 120
+  },
+  cline: {
+    id: "cline",
+    name: "Cline (VS Code)",
+    knownForTimeout: true,
+    recommendedStrategy: "no-wait",
+    knownTimeoutSeconds: 300
+  },
+  cursor: {
+    id: "cursor",
+    name: "Cursor IDE",
+    knownForTimeout: true,
+    recommendedStrategy: "no-wait",
+    knownTimeoutSeconds: 300
+  },
+  aider: {
+    id: "aider",
+    name: "Aider",
+    knownForTimeout: false,
+    recommendedStrategy: "wait"
+  }
+};
+var GENERIC_PROFILE = {
+  id: "generic",
+  name: "Unknown Agent",
+  knownForTimeout: true,
+  recommendedStrategy: "no-wait"
+};
+function resolveAgentProfile(explicitType) {
+  if (explicitType && PROFILES[explicitType]) {
+    return PROFILES[explicitType];
+  }
+  const envVars = Object.keys(process.env);
+  if (envVars.some((k) => k.startsWith("OPENCODE_"))) return PROFILES.opencode;
+  if (envVars.some((k) => k.startsWith("CLINE_"))) return PROFILES.cline;
+  if (envVars.some((k) => k.startsWith("AIDER_"))) return PROFILES.aider;
+  if (process.env.VSCODE_CWD || process.env.CURSOR_TRACE_ID) return PROFILES.cursor;
+  return GENERIC_PROFILE;
+}
+function getFallbackMessage(profile, _taskId) {
+  if (profile.knownForTimeout) {
+    if (profile.knownTimeoutSeconds) {
+      return `[spec-align] \u68C0\u6D4B\u5230 ${profile.name}\uFF0C\u5176 exec \u8D85\u65F6\u7EA6 ${profile.knownTimeoutSeconds}s\u3002
+  \u4E3A\u786E\u4FDD\u6570\u636E\u4E0D\u4E22\u5931\uFF0C\u63A8\u8350\u4F7F\u7528 --no-wait \u6A21\u5F0F\u3002`;
+    }
+    return `[spec-align] \u68C0\u6D4B\u5230 ${profile.name}\uFF0C\u8BE5 Agent \u53EF\u80FD\u6709 exec \u8D85\u65F6\u3002
+  \u63A8\u8350\u4F7F\u7528 --no-wait \u6A21\u5F0F\uFF0C\u7136\u540E\u901A\u8FC7 await-confirm \u83B7\u53D6\u7ED3\u679C\u3002`;
+  }
+  return `[spec-align] \u68C0\u6D4B\u5230 ${profile.name}\u3002`;
+}
+function getReconnectHint(taskId, panelUrl) {
+  const lines = [
+    ``,
+    `  \u82E5\u6B64\u8FDB\u7A0B\u56E0\u8D85\u65F6\u88AB\u7EC8\u6B62\uFF0C\u53EF\u901A\u8FC7\u4EE5\u4E0B\u65B9\u5F0F\u83B7\u53D6\u7ED3\u679C\uFF1A`,
+    `  \u65B9\u5F0F1: spec-thought-align await-confirm --id "${taskId}"`,
+    `  \u65B9\u5F0F2: \u76F4\u63A5\u8BFB\u53D6\u6587\u4EF6 .spec-thought-align/${taskId}/spec.json`,
+    `  \u9762\u677F:   ${panelUrl}`
+  ];
+  return lines.join("\n");
 }
 
 // packages/cli/src/engine/parser.ts
@@ -883,10 +972,12 @@ function createSubmitCommand() {
     const timeout = parseInt(timeoutStr, 10);
     const requestedPort = portStr ? parseInt(portStr, 10) : 5678;
     const basePath = getStorageBasePath();
+    const agentProfile = resolveAgentProfile(agentType);
+    console.log(chalk.gray(getFallbackMessage(agentProfile, taskId)));
     console.log(chalk.blue(`
 \u{1F4CB} Spec-Align: ${taskId}`));
     console.log(chalk.gray(`  \u5199\u5165\u539F\u59CB\u5206\u6790...`));
-    writeInput(taskId, { request, analysis, agentType }, basePath);
+    writeInput(taskId, { request, analysis, agentType: agentProfile.id }, basePath);
     console.log(chalk.gray(`  \u521B\u5EFA\u7ED3\u6784\u5316\u89C4\u7EA6...`));
     const spec = createEmptySpec(taskId, request, analysis, agentType);
     console.log(chalk.gray(`  \u89C4\u5219\u5F15\u64CE\u89E3\u6790\u4E2D...`));
@@ -919,10 +1010,16 @@ function createSubmitCommand() {
       console.log(chalk.gray(`
 \u23E9 Server \u5DF2\u542F\u52A8\uFF08--no-wait \u6A21\u5F0F\uFF09`));
       console.log(chalk.gray(`   \u9762\u677F: ${panelUrl}`));
+      if (agentProfile.knownForTimeout) {
+        console.log(chalk.yellow(getReconnectHint(taskId, panelUrl)));
+      }
       return;
     }
     console.log(chalk.yellow(`
 \u23F3 \u7B49\u5F85\u7528\u6237\u786E\u8BA4... (\u8D85\u65F6: ${timeout}s)`));
+    if (agentProfile.knownForTimeout) {
+      console.log(chalk.gray(getReconnectHint(taskId, panelUrl)));
+    }
     const startTime = Date.now();
     let lastStatus = "pending";
     while (true) {
@@ -938,6 +1035,7 @@ function createSubmitCommand() {
         const currentStatus = statusData.status;
         if (currentStatus === "confirmed") {
           const finalSpec = readSpec(taskId, basePath);
+          writeResult(taskId, finalSpec, basePath);
           console.log(chalk.green(`
 \u2705 \u7528\u6237\u5DF2\u786E\u8BA4\u89C4\u7EA6\uFF01`));
           console.log(JSON.stringify(finalSpec, null, 2));
@@ -1401,10 +1499,138 @@ ${chalk8.bold("\u5B50\u4EFB\u52A1\u72B6\u6001:")}`);
   });
 }
 
-// packages/cli/src/commands/__serve.ts
+// packages/cli/src/commands/await-confirm.ts
+init_src();
+init_storage();
 import { Command as Command10 } from "commander";
+import chalk9 from "chalk";
+import http2 from "node:http";
+var DEFAULT_PORT = 5678;
+function httpGet(url, timeoutMs = 2e3) {
+  return new Promise((resolve, reject) => {
+    const req = http2.get(url, { timeout: timeoutMs }, (res) => {
+      let body = "";
+      res.on("data", (chunk) => body += chunk);
+      res.on("end", () => {
+        try {
+          resolve(JSON.parse(body));
+        } catch {
+          reject(new Error("Invalid JSON response"));
+        }
+      });
+    });
+    req.on("error", reject);
+    req.on("timeout", () => {
+      req.destroy();
+      reject(new Error("Request timeout"));
+    });
+  });
+}
+async function pollHttpApi(taskId, port, timeoutSeconds) {
+  const startTime = Date.now();
+  const url = `http://localhost:${port}/api/task/${taskId}`;
+  while (true) {
+    const elapsed = (Date.now() - startTime) / 1e3;
+    if (elapsed > timeoutSeconds) {
+      return { success: false, exitCode: EXIT_CODES.TIMEOUT };
+    }
+    try {
+      const resp = await httpGet(url);
+      if (resp.success && resp.data?.meta?.status === "confirmed") {
+        return { success: true, exitCode: EXIT_CODES.CONFIRMED, data: resp.data };
+      }
+      if (resp.success && resp.data?.meta?.status === "cancelled") {
+        return { success: false, exitCode: EXIT_CODES.CANCELLED };
+      }
+    } catch {
+      return { success: false, exitCode: EXIT_CODES.ERROR };
+    }
+    await sleep2(POLL_INTERVAL_MS);
+  }
+}
+async function pollFilesystem(taskId, timeoutSeconds, basePath) {
+  const startTime = Date.now();
+  while (true) {
+    const elapsed = (Date.now() - startTime) / 1e3;
+    if (elapsed > timeoutSeconds) {
+      return { success: false, exitCode: EXIT_CODES.TIMEOUT };
+    }
+    try {
+      const statusData = readStatus(taskId, basePath);
+      if (statusData.status === "confirmed") {
+        const result = readResult(taskId, basePath) || readSpec(taskId, basePath);
+        return { success: true, exitCode: EXIT_CODES.CONFIRMED, data: result };
+      }
+      if (statusData.status === "cancelled") {
+        return { success: false, exitCode: EXIT_CODES.CANCELLED };
+      }
+    } catch {
+    }
+    await sleep2(POLL_INTERVAL_MS);
+  }
+}
+function createAwaitConfirmCommand() {
+  return new Command10("await-confirm").description("\u7B49\u5F85\u7528\u6237\u786E\u8BA4\u5E76\u8FD4\u56DE\u6700\u7EC8\u89C4\u7EA6 JSON\uFF08\u53EF\u5728\u8FDB\u7A0B\u88AB\u7EC8\u6B62\u540E\u91CD\u65B0\u8FDE\u63A5\uFF09").requiredOption("--id <id>", "\u4EFB\u52A1 ID").option("--timeout <seconds>", "\u8D85\u65F6\u79D2\u6570", String(DEFAULT_TIMEOUT_SECONDS)).option("--port <port>", "HTTP Server \u7AEF\u53E3", String(DEFAULT_PORT)).action(async (options) => {
+    const {
+      id: taskId,
+      timeout: timeoutStr,
+      port: portStr
+    } = options;
+    const timeout = parseInt(timeoutStr, 10);
+    const port = parseInt(portStr, 10);
+    const basePath = getStorageBasePath();
+    console.log(chalk9.blue(`
+\u23F3 \u7B49\u5F85\u786E\u8BA4: ${taskId}`));
+    console.log(chalk9.gray(`   \u8D85\u65F6: ${timeout}s | Server \u7AEF\u53E3: ${port}`));
+    console.log(chalk9.gray(`   \u8FDE\u63A5 Server...`));
+    let result = await pollHttpApi(taskId, port, Math.min(timeout, 10));
+    if (result.success) {
+      printResult(result.data);
+      return;
+    }
+    if (result.exitCode === EXIT_CODES.CANCELLED) {
+      console.log(chalk9.red(`
+\u274C \u7528\u6237\u5DF2\u53D6\u6D88`));
+      process.exit(EXIT_CODES.CANCELLED);
+    }
+    const remainingTimeout = timeout - 10;
+    if (remainingTimeout <= 0) {
+      console.log(chalk9.red(`
+\u23F1\uFE0F  \u7B49\u5F85\u8D85\u65F6 (${timeout}s)`));
+      console.log(chalk9.gray(`   Server \u65E0\u54CD\u5E94\uFF0C\u4E14\u672A\u627E\u5230\u786E\u8BA4\u7ED3\u679C`));
+      process.exit(EXIT_CODES.TIMEOUT);
+    }
+    console.log(chalk9.yellow(`   Server \u4E0D\u53EF\u8FBE\uFF0C\u5207\u6362\u5230\u6587\u4EF6\u7CFB\u7EDF\u8F6E\u8BE2...`));
+    result = await pollFilesystem(taskId, remainingTimeout, basePath);
+    if (result.success) {
+      printResult(result.data);
+      return;
+    }
+    if (result.exitCode === EXIT_CODES.CANCELLED) {
+      console.log(chalk9.red(`
+\u274C \u7528\u6237\u5DF2\u53D6\u6D88`));
+      process.exit(EXIT_CODES.CANCELLED);
+    }
+    console.log(chalk9.red(`
+\u23F1\uFE0F  \u7B49\u5F85\u8D85\u65F6 (${timeout}s)`));
+    console.log(chalk9.gray(`   \u8BF7\u786E\u8BA4\u9762\u677F\u662F\u5426\u4ECD\u5728\u8FD0\u884C: http://localhost:${port}/task/${taskId}`));
+    process.exit(EXIT_CODES.TIMEOUT);
+  });
+}
+function printResult(data) {
+  console.log(chalk9.green(`
+\u2705 \u7528\u6237\u5DF2\u786E\u8BA4\u89C4\u7EA6\uFF01`));
+  console.log(JSON.stringify(data, null, 2));
+  process.exit(EXIT_CODES.CONFIRMED);
+}
+function sleep2(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// packages/cli/src/commands/__serve.ts
+import { Command as Command11 } from "commander";
 function createServeCommand() {
-  return new Command10("__serve").description("(\u5185\u90E8) \u540E\u53F0\u542F\u52A8 HTTP Server").requiredOption("--port <port>", "\u7AEF\u53E3\u53F7").action(async (options) => {
+  return new Command11("__serve").description("(\u5185\u90E8) \u540E\u53F0\u542F\u52A8 HTTP Server").requiredOption("--port <port>", "\u7AEF\u53E3\u53F7").action(async (options) => {
     const port = parseInt(options.port, 10);
     await ensureServer(port);
     setInterval(() => {
@@ -1413,7 +1639,7 @@ function createServeCommand() {
 }
 
 // packages/cli/src/index.ts
-var program = new Command11();
+var program = new Command12();
 program.name("spec-thought-align").description("AI Coding Agent \u65BD\u5DE5\u524D\u7684\u9700\u6C42\u89C4\u7EA6\u53EF\u89C6\u5316\u786E\u8BA4\u9762\u677F").version("0.1.0");
 program.addCommand(createSubmitCommand());
 program.addCommand(createFetchCommand());
@@ -1423,6 +1649,7 @@ program.addCommand(createCompleteCommand());
 program.addCommand(createSplitCommand());
 program.addCommand(createStartCommand());
 program.addCommand(createVerifyCommand());
+program.addCommand(createAwaitConfirmCommand());
 program.addCommand(createConfigCommand());
 program.addCommand(createServeCommand(), { hidden: true });
 program.parse(process.argv);

@@ -9,6 +9,7 @@ import { createConfigCommand } from './commands/config.js';
 import { createSplitCommand } from './commands/split.js';
 import { createStartCommand } from './commands/start.js';
 import { createVerifyCommand } from './commands/verify.js';
+import { createAwaitConfirmCommand } from './commands/await-confirm.js';
 import { createServeCommand } from './commands/__serve.js';
 
 const program = new Command();
@@ -26,6 +27,7 @@ program.addCommand(createCompleteCommand());
 program.addCommand(createSplitCommand());
 program.addCommand(createStartCommand());
 program.addCommand(createVerifyCommand());
+program.addCommand(createAwaitConfirmCommand());
 program.addCommand(createConfigCommand());
 program.addCommand(createServeCommand(), { hidden: true });
 

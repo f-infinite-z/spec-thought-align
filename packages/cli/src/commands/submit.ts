@@ -12,12 +12,14 @@ import {
   writeInput,
   writeSpec,
   writeStatus,
+  writeResult,
   readStatus,
   readSpec,
   getStorageBasePath,
 } from '../storage/index.js';
 import { ensureServer } from '../server/index.js';
 import { openBrowser } from '../utils/browser.js';
+import { resolveAgentProfile, getFallbackMessage, getReconnectHint } from '../utils/agent.js';
 import { fillSpecFromAnalysis } from '../engine/parser.js';
 
 function waitForServer(port: number, timeoutMs = 10000): Promise<boolean> {
@@ -97,10 +99,14 @@ export function createSubmitCommand(): Command {
       const requestedPort = portStr ? parseInt(portStr, 10) : 5678;
       const basePath = getStorageBasePath();
 
+      // 0. 解析 Agent 类型
+      const agentProfile = resolveAgentProfile(agentType);
+      console.log(chalk.gray(getFallbackMessage(agentProfile, taskId)));
+
       // 1. 写入原始输入
       console.log(chalk.blue(`\n📋 Spec-Align: ${taskId}`));
       console.log(chalk.gray(`  写入原始分析...`));
-      writeInput(taskId, { request, analysis, agentType }, basePath);
+      writeInput(taskId, { request, analysis, agentType: agentProfile.id }, basePath);
 
       // 2. 创建初始规约（半空）
       console.log(chalk.gray(`  创建结构化规约...`));
@@ -147,11 +153,17 @@ export function createSubmitCommand(): Command {
       if (!shouldWait) {
         console.log(chalk.gray(`\n⏩ Server 已启动（--no-wait 模式）`));
         console.log(chalk.gray(`   面板: ${panelUrl}`));
+        if (agentProfile.knownForTimeout) {
+          console.log(chalk.yellow(getReconnectHint(taskId, panelUrl)));
+        }
         return;
       }
 
       // 7. 阻塞等待用户确认
       console.log(chalk.yellow(`\n⏳ 等待用户确认... (超时: ${timeout}s)`));
+      if (agentProfile.knownForTimeout) {
+        console.log(chalk.gray(getReconnectHint(taskId, panelUrl)));
+      }
 
       const startTime = Date.now();
       let lastStatus = 'pending';
@@ -174,6 +186,7 @@ export function createSubmitCommand(): Command {
           if (currentStatus === 'confirmed') {
             // 用户已确认：立即输出 JSON 给 Agent，但保持 Server 存活 10 秒
             const finalSpec = readSpec(taskId, basePath);
+            writeResult(taskId, finalSpec, basePath);
             console.log(chalk.green(`\n✅ 用户已确认规约！`));
             console.log(JSON.stringify(finalSpec, null, 2));
             console.log(chalk.gray(`\n🕐 Server 将在 10 秒后关闭，此期间仍可访问面板查看结果`));
