@@ -1,6 +1,6 @@
 {
   "name": "spec-thought-align",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "AI Coding Agent 施工前的需求规约可视化确认面板 —— 让 Agent 把思考摊开，确认无误再动工",
   "license": "MIT",
   "type": "module",

@@ -60,7 +60,6 @@ async function pollHttpApi(
         return { success: false, exitCode: EXIT_CODES.CANCELLED };
       }
     } catch {
-      // Server not reachable, will try filesystem fallback
       return { success: false, exitCode: EXIT_CODES.ERROR };
     }
 
@@ -101,24 +100,78 @@ async function pollFilesystem(
   }
 }
 
+async function checkOnce(
+  taskId: string,
+  port: number,
+  basePath: string,
+): Promise<{ success: boolean; data?: unknown }> {
+  try {
+    const resp = await httpGetTimedOut(`http://localhost:${port}/api/task/${taskId}`, 2000);
+    if (resp && resp.success && resp.data?.meta?.status === 'confirmed') {
+      return { success: true, data: resp.data };
+    }
+    if (resp && resp.success && resp.data?.meta?.status === 'cancelled') {
+      return { success: false };
+    }
+  } catch {
+    // HTTP not reachable, fall through to filesystem
+  }
+
+  try {
+    const statusData = readStatus(taskId, basePath);
+    if (statusData.status === 'confirmed') {
+      const result = readResult(taskId, basePath) || readSpec(taskId, basePath);
+      return { success: true, data: result };
+    }
+    if (statusData.status === 'cancelled') {
+      return { success: false };
+    }
+  } catch {
+    // no status file
+  }
+
+  return { success: false };
+}
+
+async function httpGetTimedOut(url: string, timeoutMs: number): Promise<ApiTaskResponse | null> {
+  try {
+    return await httpGet(url, timeoutMs);
+  } catch {
+    return null;
+  }
+}
+
 export function createAwaitConfirmCommand(): Command {
   return new Command('await-confirm')
     .description('等待用户确认并返回最终规约 JSON（可在进程被终止后重新连接）')
     .requiredOption('--id <id>', '任务 ID')
     .option('--timeout <seconds>', '超时秒数', String(DEFAULT_TIMEOUT_SECONDS))
     .option('--port <port>', 'HTTP Server 端口', String(DEFAULT_PORT))
+    .option('--check', '快速检查模式：仅检查一次，不轮询（适用于有 exec 超时的 Agent）')
     .action(async (options) => {
-      const { id: taskId, timeout: timeoutStr, port: portStr } = options;
+      const { id: taskId, timeout: timeoutStr, port: portStr, check } = options;
 
       const timeout = parseInt(timeoutStr, 10);
       const port = parseInt(portStr, 10);
       const basePath = getStorageBasePath();
+
+      if (check) {
+        const result = await checkOnce(taskId, port, basePath);
+        if (result.success) {
+          printResult(result.data);
+          return;
+        }
+        console.log(chalk.yellow(`\n⏳ 待确认: ${taskId}`));
+        console.log(chalk.gray(`   面板: http://localhost:${port}/task/${taskId}`));
+        process.exit(EXIT_CODES.TIMEOUT);
+        return;
+      }
+
       const startedAt = Date.now();
 
       console.log(chalk.blue(`\n⏳ 等待确认: ${taskId}`));
       console.log(chalk.gray(`   超时: ${timeout}s | Server 端口: ${port}`));
 
-      // 1. Try HTTP API polling (faster, confirms server is alive)
       console.log(chalk.gray(`   连接 Server...`));
       const httpBudget = Math.min(timeout, 10);
       let result = await pollHttpApi(taskId, port, httpBudget);
@@ -133,7 +186,6 @@ export function createAwaitConfirmCommand(): Command {
         process.exit(EXIT_CODES.CANCELLED);
       }
 
-      // 2. HTTP failed or server not reachable, fallback to filesystem polling
       const elapsed = (Date.now() - startedAt) / 1000;
       const remainingTimeout = Math.max(0, timeout - elapsed);
 

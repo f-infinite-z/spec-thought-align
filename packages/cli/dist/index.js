@@ -1607,12 +1607,58 @@ async function pollFilesystem(taskId, timeoutSeconds, basePath) {
     await sleep2(POLL_INTERVAL_MS);
   }
 }
+async function checkOnce(taskId, port, basePath) {
+  try {
+    const resp = await httpGetTimedOut(
+      `http://localhost:${port}/api/task/${taskId}`,
+      2e3
+    );
+    if (resp && resp.success && resp.data?.meta?.status === "confirmed") {
+      return { success: true, data: resp.data };
+    }
+    if (resp && resp.success && resp.data?.meta?.status === "cancelled") {
+      return { success: false };
+    }
+  } catch {
+  }
+  try {
+    const statusData = readStatus(taskId, basePath);
+    if (statusData.status === "confirmed") {
+      const result = readResult(taskId, basePath) || readSpec(taskId, basePath);
+      return { success: true, data: result };
+    }
+    if (statusData.status === "cancelled") {
+      return { success: false };
+    }
+  } catch {
+  }
+  return { success: false };
+}
+async function httpGetTimedOut(url, timeoutMs) {
+  try {
+    return await httpGet(url, timeoutMs);
+  } catch {
+    return null;
+  }
+}
 function createAwaitConfirmCommand() {
-  return new Command10("await-confirm").description("\u7B49\u5F85\u7528\u6237\u786E\u8BA4\u5E76\u8FD4\u56DE\u6700\u7EC8\u89C4\u7EA6 JSON\uFF08\u53EF\u5728\u8FDB\u7A0B\u88AB\u7EC8\u6B62\u540E\u91CD\u65B0\u8FDE\u63A5\uFF09").requiredOption("--id <id>", "\u4EFB\u52A1 ID").option("--timeout <seconds>", "\u8D85\u65F6\u79D2\u6570", String(DEFAULT_TIMEOUT_SECONDS)).option("--port <port>", "HTTP Server \u7AEF\u53E3", String(DEFAULT_PORT)).action(async (options) => {
-    const { id: taskId, timeout: timeoutStr, port: portStr } = options;
+  return new Command10("await-confirm").description("\u7B49\u5F85\u7528\u6237\u786E\u8BA4\u5E76\u8FD4\u56DE\u6700\u7EC8\u89C4\u7EA6 JSON\uFF08\u53EF\u5728\u8FDB\u7A0B\u88AB\u7EC8\u6B62\u540E\u91CD\u65B0\u8FDE\u63A5\uFF09").requiredOption("--id <id>", "\u4EFB\u52A1 ID").option("--timeout <seconds>", "\u8D85\u65F6\u79D2\u6570", String(DEFAULT_TIMEOUT_SECONDS)).option("--port <port>", "HTTP Server \u7AEF\u53E3", String(DEFAULT_PORT)).option("--check", "\u5FEB\u901F\u68C0\u67E5\u6A21\u5F0F\uFF1A\u4EC5\u68C0\u67E5\u4E00\u6B21\uFF0C\u4E0D\u8F6E\u8BE2\uFF08\u9002\u7528\u4E8E\u6709 exec \u8D85\u65F6\u7684 Agent\uFF09").action(async (options) => {
+    const { id: taskId, timeout: timeoutStr, port: portStr, check } = options;
     const timeout = parseInt(timeoutStr, 10);
     const port = parseInt(portStr, 10);
     const basePath = getStorageBasePath();
+    if (check) {
+      const result2 = await checkOnce(taskId, port, basePath);
+      if (result2.success) {
+        printResult(result2.data);
+        return;
+      }
+      console.log(chalk9.yellow(`
+\u23F3 \u5F85\u786E\u8BA4: ${taskId}`));
+      console.log(chalk9.gray(`   \u9762\u677F: http://localhost:${port}/task/${taskId}`));
+      process.exit(EXIT_CODES.TIMEOUT);
+      return;
+    }
     const startedAt = Date.now();
     console.log(chalk9.blue(`
 \u23F3 \u7B49\u5F85\u786E\u8BA4: ${taskId}`));
@@ -1631,7 +1677,11 @@ function createAwaitConfirmCommand() {
     }
     const elapsed = (Date.now() - startedAt) / 1e3;
     const remainingTimeout = Math.max(0, timeout - elapsed);
-    console.log(chalk9.yellow(`   HTTP \u8F6E\u8BE2\u672A\u786E\u8BA4\uFF0C\u5207\u6362\u5230\u6587\u4EF6\u7CFB\u7EDF\u8F6E\u8BE2 (\u5269\u4F59 ${Math.ceil(remainingTimeout)}s)...`));
+    console.log(
+      chalk9.yellow(
+        `   HTTP \u8F6E\u8BE2\u672A\u786E\u8BA4\uFF0C\u5207\u6362\u5230\u6587\u4EF6\u7CFB\u7EDF\u8F6E\u8BE2 (\u5269\u4F59 ${Math.ceil(remainingTimeout)}s)...`
+      )
+    );
     result = await pollFilesystem(taskId, remainingTimeout, basePath);
     if (result.success) {
       printResult(result.data);
@@ -1989,9 +2039,7 @@ spec-thought-align await-confirm --id "<\u4EFB\u52A1\u540D>"
     knownTimeoutSeconds: 300
   };
   detectPlatform() {
-    return Object.keys(process.env).some(
-      (k) => k === "OPENAI_API_KEY" || k.startsWith("CODEX_")
-    );
+    return Object.keys(process.env).some((k) => k === "OPENAI_API_KEY" || k.startsWith("CODEX_"));
   }
 }();
 
@@ -2050,19 +2098,24 @@ function listAdapters() {
 
 // packages/cli/src/commands/detect.ts
 function createDetectCommand() {
-  return new Command12("detect").description("\u68C0\u6D4B\u5F53\u524D\u4E0A\u4E0B\u6587\u662F\u5426\u9700\u8981\u89E6\u53D1 spec-align \u9700\u6C42\u786E\u8BA4\u6D41\u7A0B").option("--platform <type>", "\u76EE\u6807\u5E73\u53F0 (opencode/claude-code/cursor/aider/windsurf/gemini-cli/openai-codex)").option("--files <count>", "\u6D89\u53CA\u7684\u6587\u4EF6\u6570\u91CF", parseInt).option("--file-list <list>", "\u6D89\u53CA\u7684\u6587\u4EF6\u5217\u8868\uFF08\u9017\u53F7\u5206\u9694\uFF09").option("--request <text>", "\u7528\u6237\u539F\u59CB\u9700\u6C42\u6587\u672C").option("--new-feature", "\u662F\u5426\u4E3A\u65B0\u529F\u80FD\u5F00\u53D1").option("--bug-fix", "\u662F\u5426\u4E3A Bug \u4FEE\u590D").option("--architecture-change", "\u662F\u5426\u6D89\u53CA\u67B6\u6784\u53D8\u66F4").option("--has-ambiguity", "\u9700\u6C42\u662F\u5426\u5B58\u5728\u6A21\u7CCA\u4E4B\u5904").option("--has-detailed-context", "Bug \u63CF\u8FF0\u662F\u5426\u5305\u542B\u6E05\u6670\u7684\u5B9A\u4F4D\u4FE1\u606F").option("--complexity <level>", "\u590D\u6742\u5EA6 (low/medium/high)", "medium").option("--list-platforms", "\u5217\u51FA\u6240\u6709\u652F\u6301\u7684\u5E73\u53F0").action(async (options) => {
+  return new Command12("detect").description("\u68C0\u6D4B\u5F53\u524D\u4E0A\u4E0B\u6587\u662F\u5426\u9700\u8981\u89E6\u53D1 spec-align \u9700\u6C42\u786E\u8BA4\u6D41\u7A0B").option(
+    "--platform <type>",
+    "\u76EE\u6807\u5E73\u53F0 (opencode/claude-code/cursor/aider/windsurf/gemini-cli/openai-codex)"
+  ).option("--files <count>", "\u6D89\u53CA\u7684\u6587\u4EF6\u6570\u91CF", parseInt).option("--file-list <list>", "\u6D89\u53CA\u7684\u6587\u4EF6\u5217\u8868\uFF08\u9017\u53F7\u5206\u9694\uFF09").option("--request <text>", "\u7528\u6237\u539F\u59CB\u9700\u6C42\u6587\u672C").option("--new-feature", "\u662F\u5426\u4E3A\u65B0\u529F\u80FD\u5F00\u53D1").option("--bug-fix", "\u662F\u5426\u4E3A Bug \u4FEE\u590D").option("--architecture-change", "\u662F\u5426\u6D89\u53CA\u67B6\u6784\u53D8\u66F4").option("--has-ambiguity", "\u9700\u6C42\u662F\u5426\u5B58\u5728\u6A21\u7CCA\u4E4B\u5904").option("--has-detailed-context", "Bug \u63CF\u8FF0\u662F\u5426\u5305\u542B\u6E05\u6670\u7684\u5B9A\u4F4D\u4FE1\u606F").option("--complexity <level>", "\u590D\u6742\u5EA6 (low/medium/high)", "medium").option("--list-platforms", "\u5217\u51FA\u6240\u6709\u652F\u6301\u7684\u5E73\u53F0").action(async (options) => {
     if (options.listPlatforms) {
       const adapters = listAdapters();
-      console.log(JSON.stringify(
-        adapters.map((a) => ({
-          id: a.id,
-          name: a.displayName,
-          strategy: a.integration.recommendedStrategy,
-          timeout: a.integration.knownTimeoutSeconds
-        })),
-        null,
-        2
-      ));
+      console.log(
+        JSON.stringify(
+          adapters.map((a) => ({
+            id: a.id,
+            name: a.displayName,
+            strategy: a.integration.recommendedStrategy,
+            timeout: a.integration.knownTimeoutSeconds
+          })),
+          null,
+          2
+        )
+      );
       return;
     }
     const adapter = resolveAdapter(options.platform);
@@ -2078,12 +2131,18 @@ function createDetectCommand() {
       hasDetailedContext: options.hasDetailedContext || void 0
     };
     const result = adapter.shouldTrigger(context);
-    console.log(JSON.stringify({
-      platform: adapter.id,
-      platformName: adapter.displayName,
-      recommendedStrategy: adapter.integration.recommendedStrategy,
-      ...result
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          platform: adapter.id,
+          platformName: adapter.displayName,
+          recommendedStrategy: adapter.integration.recommendedStrategy,
+          ...result
+        },
+        null,
+        2
+      )
+    );
   });
 }
 

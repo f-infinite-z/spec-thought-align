@@ -23,10 +23,7 @@ spec-thought-align detect \
   --platform claude-code \
   --files <预估修改文件数> \
   --request "<用户原始需求>" \
-  [--new-feature] \
-  [--architecture-change] \
-  [--has-ambiguity] \
-  [--complexity low|medium|high]
+  [--new-feature] [--bug-fix] [--architecture-change] [--has-ambiguity] [--complexity low|medium|high]
 ```
 
 detect 返回 JSON，根据 `mode` 决定：
@@ -39,7 +36,7 @@ detect 返回 JSON，根据 `mode` 决定：
 
 ## 工作流程
 
-> 注意：Claude Code 的 exec 默认超时约 120s，用户确认时间不可控。因此**强制使用 --no-wait + await-confirm 模式**。
+> Claude Code 的 exec 默认超时约 120s，确认时间不可控。使用 **--no-wait + --check 轮询** 模式。
 
 ### 步骤 1：提交规约
 
@@ -59,40 +56,22 @@ spec-thought-align submit \
 
 ### 步骤 2：等待用户确认
 
+使用 **--check** 模式轮询（每次调用立即返回，不会被 exec 超时杀死）：
+
 ```bash
-spec-thought-align await-confirm --id "<任务名>" --timeout 600
+spec-thought-align await-confirm --id "<任务名>" --timeout 600 --check
 ```
 
-- 通过 HTTP API 轮询 Server（优先），Server 不可达时自动切换文件系统轮询
-- 确认后输出完整 JSON 规约到 stdout
-- 超时（默认 600s）或用户取消时返回对应退出码
-
-> 若步骤 2 因 Claude Code 超时而进程被杀，在**新对话/新 session** 中重新执行 `await-confirm` 即可。确认后的数据始终在 `.spec-thought-align/<任务名>/spec.json` 中持久化。
+- 如果用户已确认 → 立即输出 JSON 并退出 (exit 0)
+- 如果未确认 → 输出提示并退出 (exit 1)，每隔 10-15s 重试一次
+- 数据始终在 `.spec-thought-align/<任务名>/` 中持久化
 
 ### 步骤 3：根据规约施工
 
-`await-confirm` 输出的 JSON 是最终规约，**严格按它施工**：
-
-- `scope.inScope` / `scope.outOfScope` 定义范围边界
-- `questions[].userAnswer` 包含用户对疑问的逐条澄清
-- `plan.components` 和 `plan.techStack` 指定架构和技术栈
-- 不可对用户已回答的问题自行假设
+`await-confirm` 输出的 JSON 是最终规约，**严格按它施工**。
 
 ### 步骤 4：标记完成
 
 ```bash
-spec-thought-align complete \
-  --id "<任务名>" \
-  --summary "<做了什么>"
-```
-
----
-
-## 备用取结果方式
-
-若 CLI 不可用或 Server 已关闭，可直接读取文件：
-
-```bash
-cat .spec-thought-align/<任务名>/result.json   # 有 result.json 优先
-cat .spec-thought-align/<任务名>/spec.json     # 兜底
+spec-thought-align complete --id "<任务名>" --summary "<做了什么>"
 ```
