@@ -51,7 +51,7 @@ var init_constants = __esm({
       ERROR: 3
     };
     DEFAULT_TIMEOUT_SECONDS = 600;
-    POLL_INTERVAL_MS = 2e3;
+    POLL_INTERVAL_MS = 1e3;
   }
 });
 
@@ -139,9 +139,10 @@ function readSpec(taskId, basePath = ".") {
 function writeStatus(taskId, status, basePath = ".") {
   const dir = ensureTaskDir(taskId, basePath);
   const filePath = path.join(dir, STATUS_FILE);
+  const prev = readStatus(taskId, basePath);
   const data = {
     status,
-    createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+    createdAt: prev.createdAt || (/* @__PURE__ */ new Date()).toISOString(),
     updatedAt: (/* @__PURE__ */ new Date()).toISOString()
   };
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
@@ -221,14 +222,14 @@ var init_storage = __esm({
 });
 
 // packages/cli/src/index.ts
-import { Command as Command12 } from "commander";
+import { Command as Command14 } from "commander";
 
 // packages/cli/src/commands/submit.ts
 init_src();
 init_storage();
 import { Command } from "commander";
 import chalk from "chalk";
-import { exec as exec2 } from "child_process";
+import { spawn } from "child_process";
 import http from "node:http";
 
 // packages/cli/src/server/index.ts
@@ -242,6 +243,36 @@ import path2 from "node:path";
 import { fileURLToPath } from "node:url";
 var server = null;
 var currentPort = 0;
+function ensureDir(dirPath) {
+  if (!fs2.existsSync(dirPath)) {
+    fs2.mkdirSync(dirPath, { recursive: true });
+  }
+}
+function getLogDir() {
+  return path2.join(process.cwd(), STORAGE_DIR, ".server-logs");
+}
+function writeRequestLog(entry) {
+  try {
+    const logDir = getLogDir();
+    ensureDir(logDir);
+    const logPath = path2.join(logDir, "requests.log");
+    const line = JSON.stringify({ timestamp: (/* @__PURE__ */ new Date()).toISOString(), ...entry }) + "\n";
+    fs2.appendFileSync(logPath, line, "utf-8");
+  } catch {
+  }
+}
+function requestLogger() {
+  return async (c, next) => {
+    const method = c.req.method;
+    const url = c.req.url;
+    process.stdout.write(`[server] \u2190 ${method} ${url}
+`);
+    await next();
+    process.stdout.write(`[server] \u2192 ${method} ${url} ${c.res.status}
+`);
+    writeRequestLog({ method, url, status: c.res.status });
+  };
+}
 function getUiDistPath() {
   const serverDir = path2.dirname(fileURLToPath(import.meta.url));
   const pkgPath = path2.join(serverDir, "ui");
@@ -265,14 +296,7 @@ async function ensureServer(requestedPort) {
   }
   const app = new Hono();
   const uiDistPath = getUiDistPath();
-  if (fs2.existsSync(uiDistPath)) {
-    app.use("/assets/*", serveStatic({ root: uiDistPath }));
-    app.use("/*", serveStatic({ root: uiDistPath, rewriteRequestPath: (p) => p }));
-  }
-  app.get("/task/:id", (c) => {
-    const taskId = c.req.param("id");
-    return c.html(serveUiPage(taskId));
-  });
+  app.use("*", requestLogger());
   app.get("/api/task/:id", (c) => {
     const taskId = c.req.param("id");
     try {
@@ -283,7 +307,6 @@ async function ensureServer(requestedPort) {
         data: { ...spec, meta: { ...spec.meta, status: statusData.status } }
       });
     } catch (err) {
-      console.error(`[server] GET /api/task/${taskId} error:`, err);
       return c.json({ success: false, error: "Task not found" }, 404);
     }
   });
@@ -300,12 +323,13 @@ async function ensureServer(requestedPort) {
       writeSpec(taskId, spec);
       return c.json({ success: true });
     } catch (err) {
-      console.error(`[server] POST /api/task/${taskId}/spec error:`, err);
       return c.json({ success: false, error: "Failed to save spec" }, 500);
     }
   });
   app.post("/api/task/:id/confirm", (c) => {
     const taskId = c.req.param("id");
+    process.stdout.write(`[server] CONFIRM handler reached for task ${taskId}
+`);
     try {
       writeStatus(taskId, "confirmed");
       const spec = readSpec(taskId);
@@ -313,9 +337,12 @@ async function ensureServer(requestedPort) {
       spec.meta.confirmedAt = (/* @__PURE__ */ new Date()).toISOString();
       writeSpec(taskId, spec);
       writeResult(taskId, spec);
+      process.stdout.write(`[server] CONFIRM done for task ${taskId}
+`);
       return c.json({ success: true, message: "\u5DF2\u786E\u8BA4" });
     } catch (err) {
-      console.error(`[server] POST /api/task/${taskId}/confirm error:`, err);
+      process.stdout.write(`[server] CONFIRM error for task ${taskId}: ${String(err)}
+`);
       return c.json({ success: false, error: "Failed to confirm task" }, 500);
     }
   });
@@ -325,7 +352,6 @@ async function ensureServer(requestedPort) {
       writeStatus(taskId, "cancelled");
       return c.json({ success: true, message: "\u5DF2\u53D6\u6D88" });
     } catch (err) {
-      console.error(`[server] POST /api/task/${taskId}/cancel error:`, err);
       return c.json({ success: false, error: "Failed to cancel task" }, 500);
     }
   });
@@ -334,10 +360,16 @@ async function ensureServer(requestedPort) {
       const tasks = listAllTasks();
       return Response.json({ success: true, data: tasks });
     } catch (err) {
-      console.error("[server] GET /api/tasks error:", err);
       return Response.json({ success: false, error: "Failed to list tasks" }, { status: 500 });
     }
   });
+  app.get("/task/:id", (c) => {
+    const taskId = c.req.param("id");
+    return c.html(serveUiPage(taskId));
+  });
+  if (fs2.existsSync(uiDistPath)) {
+    app.use("/assets/*", serveStatic({ root: uiDistPath }));
+  }
   const port = requestedPort || 5678;
   return new Promise((resolve, reject) => {
     const tryPort = (p) => {
@@ -361,7 +393,7 @@ function listAllTasks() {
   const storagePath = path2.join(process.cwd(), STORAGE_DIR);
   if (!fs2.existsSync(storagePath)) return [];
   const entries = fs2.readdirSync(storagePath, { withFileTypes: true });
-  return entries.filter((e) => e.isDirectory()).map((e) => {
+  return entries.filter((e) => e.isDirectory() && !e.name.startsWith(".")).map((e) => {
     try {
       const spec = readSpec(e.name);
       const statusData = readStatus(e.name);
@@ -954,115 +986,121 @@ function isPortAvailable(port) {
 }
 function startDetachedServer(port) {
   const cliPath = process.argv[1];
-  exec2(`cmd /c start /b "" "${process.execPath}" "${cliPath}" __serve --port ${port}`, {
+  const child = spawn(process.execPath, [cliPath, "__serve", "--port", String(port)], {
+    detached: true,
+    stdio: "ignore",
     windowsHide: true
   });
+  child.unref();
 }
-function createSubmitCommand() {
-  return new Command("submit").description("\u63D0\u4EA4\u9700\u6C42\u89C4\u7EA6\u5E76\u7B49\u5F85\u7528\u6237\u786E\u8BA4").requiredOption("--id <id>", "\u4EFB\u52A1\u552F\u4E00\u6807\u8BC6").requiredOption("--request <text>", "\u7528\u6237\u539F\u59CB\u9700\u6C42").requiredOption("--analysis <text>", "Agent \u7684\u601D\u8003\u5206\u6790").option("--wait", "\u963B\u585E\u7B49\u5F85\u7528\u6237\u786E\u8BA4", true).option("--no-wait", "\u7ACB\u5373\u8FD4\u56DE\uFF0C\u4E0D\u7B49\u5F85").option("--timeout <seconds>", "\u8D85\u65F6\u79D2\u6570", String(DEFAULT_TIMEOUT_SECONDS)).option("--port <port>", "\u6307\u5B9A HTTP Server \u7AEF\u53E3").option("--agent-type <type>", "\u6765\u6E90 Agent \u7C7B\u578B (cline/cursor/aider/...)").action(async (options) => {
-    const {
-      id: taskId,
-      request,
-      analysis,
-      wait: shouldWait,
-      timeout: timeoutStr,
-      port: portStr,
-      agentType
-    } = options;
-    const timeout = parseInt(timeoutStr, 10);
-    const requestedPort = portStr ? parseInt(portStr, 10) : 5678;
-    const basePath = getStorageBasePath();
-    const agentProfile = resolveAgentProfile(agentType);
-    console.log(chalk.gray(getFallbackMessage(agentProfile, taskId)));
-    console.log(chalk.blue(`
+async function runSubmit(options) {
+  const {
+    id: taskId,
+    request,
+    analysis,
+    wait: shouldWait = true,
+    timeout: timeoutStr = String(DEFAULT_TIMEOUT_SECONDS),
+    port: portStr,
+    agentType
+  } = options;
+  const timeout = parseInt(timeoutStr, 10);
+  const requestedPort = portStr ? parseInt(portStr, 10) : 5678;
+  const basePath = getStorageBasePath();
+  const agentProfile = resolveAgentProfile(agentType);
+  console.log(chalk.gray(getFallbackMessage(agentProfile, taskId)));
+  console.log(chalk.blue(`
 \u{1F4CB} Spec-Align: ${taskId}`));
-    console.log(chalk.gray(`  \u5199\u5165\u539F\u59CB\u5206\u6790...`));
-    writeInput(taskId, { request, analysis, agentType: agentProfile.id }, basePath);
-    console.log(chalk.gray(`  \u521B\u5EFA\u7ED3\u6784\u5316\u89C4\u7EA6...`));
-    const spec = createEmptySpec(taskId, request, analysis, agentType);
-    console.log(chalk.gray(`  \u89C4\u5219\u5F15\u64CE\u89E3\u6790\u4E2D...`));
-    fillSpecFromAnalysis(spec);
-    writeSpec(taskId, spec, basePath);
-    writeStatus(taskId, "pending", basePath);
-    let serverPort;
-    if (!shouldWait) {
-      const available = await isPortAvailable(requestedPort);
-      if (available) {
-        startDetachedServer(requestedPort);
-        const ready = await waitForServer(requestedPort, 8e3);
-        if (!ready) {
-          console.log(chalk.red(`
-\u274C Server \u542F\u52A8\u5931\u8D25\uFF0C\u8BF7\u624B\u52A8\u8FD0\u884C:`));
-          console.log(chalk.gray(`   node ... __serve --port ${requestedPort}`));
-          process.exit(1);
-        }
-      }
-      serverPort = requestedPort;
-    } else {
-      serverPort = await ensureServer(requestedPort);
-    }
-    const panelUrl = `http://localhost:${serverPort}/task/${taskId}`;
-    console.log(chalk.green(`
-\u2705 \u89C4\u7EA6\u5DF2\u521B\u5EFA: ${taskId}`));
-    console.log(chalk.cyan(`\u{1F310} \u53EF\u89C6\u5316\u9762\u677F: ${panelUrl}`));
-    await openBrowser(panelUrl);
-    if (!shouldWait) {
-      console.log(chalk.gray(`
-\u23E9 Server \u5DF2\u542F\u52A8\uFF08--no-wait \u6A21\u5F0F\uFF09`));
-      console.log(chalk.gray(`   \u9762\u677F: ${panelUrl}`));
-      if (agentProfile.knownForTimeout) {
-        console.log(chalk.yellow(getReconnectHint(taskId, panelUrl)));
-      }
-      return;
-    }
-    console.log(chalk.yellow(`
-\u23F3 \u7B49\u5F85\u7528\u6237\u786E\u8BA4... (\u8D85\u65F6: ${timeout}s)`));
-    if (agentProfile.knownForTimeout) {
-      console.log(chalk.gray(getReconnectHint(taskId, panelUrl)));
-    }
-    const startTime = Date.now();
-    let lastStatus = "pending";
-    while (true) {
-      const elapsed = (Date.now() - startTime) / 1e3;
-      if (elapsed > timeout) {
+  console.log(chalk.gray(`  \u5199\u5165\u539F\u59CB\u5206\u6790...`));
+  writeInput(taskId, { request, analysis, agentType: agentProfile.id }, basePath);
+  console.log(chalk.gray(`  \u521B\u5EFA\u7ED3\u6784\u5316\u89C4\u7EA6...`));
+  const spec = createEmptySpec(taskId, request, analysis, agentType);
+  console.log(chalk.gray(`  \u89C4\u5219\u5F15\u64CE\u89E3\u6790\u4E2D...`));
+  fillSpecFromAnalysis(spec);
+  writeSpec(taskId, spec, basePath);
+  writeStatus(taskId, "pending", basePath);
+  let serverPort;
+  if (!shouldWait) {
+    const available = await isPortAvailable(requestedPort);
+    if (available) {
+      startDetachedServer(requestedPort);
+      const ready = await waitForServer(requestedPort, 8e3);
+      if (!ready) {
         console.log(chalk.red(`
-\u23F1\uFE0F  \u7B49\u5F85\u8D85\u65F6 (${timeout}s)`));
-        writeStatus(taskId, "cancelled", basePath);
-        process.exit(EXIT_CODES.TIMEOUT);
+\u274C Server \u542F\u52A8\u5931\u8D25\uFF0C\u8BF7\u624B\u52A8\u8FD0\u884C:`));
+        console.log(chalk.gray(`   node ... __serve --port ${requestedPort}`));
+        process.exit(1);
       }
-      try {
-        const statusData = readStatus(taskId, basePath);
-        const currentStatus = statusData.status;
-        if (currentStatus === "confirmed") {
-          const finalSpec = readSpec(taskId, basePath);
-          writeResult(taskId, finalSpec, basePath);
-          console.log(chalk.green(`
-\u2705 \u7528\u6237\u5DF2\u786E\u8BA4\u89C4\u7EA6\uFF01`));
-          console.log(JSON.stringify(finalSpec, null, 2));
-          console.log(chalk.gray(`
-\u{1F550} Server \u5C06\u5728 10 \u79D2\u540E\u5173\u95ED\uFF0C\u6B64\u671F\u95F4\u4ECD\u53EF\u8BBF\u95EE\u9762\u677F\u67E5\u770B\u7ED3\u679C`));
-          setTimeout(() => process.exit(EXIT_CODES.CONFIRMED), 1e4);
-          return;
-        }
-        if (currentStatus === "cancelled") {
-          console.log(chalk.red(`
-\u274C \u7528\u6237\u5DF2\u53D6\u6D88`));
-          console.log(chalk.gray(`
-\u{1F550} Server \u5C06\u5728 5 \u79D2\u540E\u5173\u95ED`));
-          setTimeout(() => process.exit(EXIT_CODES.CANCELLED), 5e3);
-          return;
-        }
-        if (currentStatus !== lastStatus) {
-          lastStatus = currentStatus;
-        }
-      } catch {
-      }
-      await sleep(POLL_INTERVAL_MS);
     }
-  });
+    serverPort = requestedPort;
+  } else {
+    serverPort = await ensureServer(requestedPort);
+  }
+  const panelUrl = `http://localhost:${serverPort}/task/${taskId}`;
+  console.log(chalk.green(`
+\u2705 \u89C4\u7EA6\u5DF2\u521B\u5EFA: ${taskId}`));
+  console.log(chalk.cyan(`\u{1F310} \u53EF\u89C6\u5316\u9762\u677F: ${panelUrl}`));
+  await openBrowser(panelUrl);
+  if (!shouldWait) {
+    console.log(chalk.gray(`
+\u23E9 Server \u5DF2\u542F\u52A8\uFF08--no-wait \u6A21\u5F0F\uFF09`));
+    console.log(chalk.gray(`   \u9762\u677F: ${panelUrl}`));
+    if (agentProfile.knownForTimeout) {
+      console.log(chalk.yellow(getReconnectHint(taskId, panelUrl)));
+    }
+    return;
+  }
+  console.log(chalk.yellow(`
+\u23F3 \u7B49\u5F85\u7528\u6237\u786E\u8BA4... (\u8D85\u65F6: ${timeout}s)`));
+  if (agentProfile.knownForTimeout) {
+    console.log(chalk.gray(getReconnectHint(taskId, panelUrl)));
+  }
+  const startTime = Date.now();
+  let lastStatus = "pending";
+  while (true) {
+    const elapsed = (Date.now() - startTime) / 1e3;
+    if (elapsed > timeout) {
+      console.log(chalk.red(`
+\u23F1\uFE0F  \u7B49\u5F85\u8D85\u65F6 (${timeout}s)`));
+      writeStatus(taskId, "cancelled", basePath);
+      process.exit(EXIT_CODES.TIMEOUT);
+    }
+    try {
+      const statusData = readStatus(taskId, basePath);
+      const currentStatus = statusData.status;
+      if (currentStatus === "confirmed") {
+        const finalSpec = readSpec(taskId, basePath);
+        writeResult(taskId, finalSpec, basePath);
+        console.log(chalk.green(`
+\u2705 \u7528\u6237\u5DF2\u786E\u8BA4\u89C4\u7EA6\uFF01`));
+        console.log(JSON.stringify(finalSpec, null, 2));
+        console.log(chalk.gray(`
+\u{1F550} Server \u5C06\u5728 10 \u79D2\u540E\u5173\u95ED\uFF0C\u6B64\u671F\u95F4\u4ECD\u53EF\u8BBF\u95EE\u9762\u677F\u67E5\u770B\u7ED3\u679C`));
+        setTimeout(() => process.exit(EXIT_CODES.CONFIRMED), 1e4);
+        return;
+      }
+      if (currentStatus === "cancelled") {
+        console.log(chalk.red(`
+\u274C \u7528\u6237\u5DF2\u53D6\u6D88`));
+        console.log(chalk.gray(`
+\u{1F550} Server \u5C06\u5728 5 \u79D2\u540E\u5173\u95ED`));
+        setTimeout(() => process.exit(EXIT_CODES.CANCELLED), 5e3);
+        return;
+      }
+      if (currentStatus !== lastStatus) {
+        lastStatus = currentStatus;
+      }
+    } catch {
+    }
+    await sleep(POLL_INTERVAL_MS);
+  }
 }
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+function createSubmitCommand() {
+  return new Command("submit").description("\u63D0\u4EA4\u9700\u6C42\u89C4\u7EA6\u5E76\u7B49\u5F85\u7528\u6237\u786E\u8BA4").requiredOption("--id <id>", "\u4EFB\u52A1\u552F\u4E00\u6807\u8BC6").requiredOption("--request <text>", "\u7528\u6237\u539F\u59CB\u9700\u6C42").requiredOption("--analysis <text>", "Agent \u7684\u601D\u8003\u5206\u6790").option("--wait", "\u963B\u585E\u7B49\u5F85\u7528\u6237\u786E\u8BA4", true).option("--no-wait", "\u7ACB\u5373\u8FD4\u56DE\uFF0C\u4E0D\u7B49\u5F85").option("--timeout <seconds>", "\u8D85\u65F6\u79D2\u6570", String(DEFAULT_TIMEOUT_SECONDS)).option("--port <port>", "\u6307\u5B9A HTTP Server \u7AEF\u53E3").option("--agent-type <type>", "\u6765\u6E90 Agent \u7C7B\u578B (cline/cursor/aider/...)").action(async (options) => {
+    await runSubmit(options);
+  });
 }
 
 // packages/cli/src/commands/fetch.ts
@@ -1571,19 +1609,17 @@ async function pollFilesystem(taskId, timeoutSeconds, basePath) {
 }
 function createAwaitConfirmCommand() {
   return new Command10("await-confirm").description("\u7B49\u5F85\u7528\u6237\u786E\u8BA4\u5E76\u8FD4\u56DE\u6700\u7EC8\u89C4\u7EA6 JSON\uFF08\u53EF\u5728\u8FDB\u7A0B\u88AB\u7EC8\u6B62\u540E\u91CD\u65B0\u8FDE\u63A5\uFF09").requiredOption("--id <id>", "\u4EFB\u52A1 ID").option("--timeout <seconds>", "\u8D85\u65F6\u79D2\u6570", String(DEFAULT_TIMEOUT_SECONDS)).option("--port <port>", "HTTP Server \u7AEF\u53E3", String(DEFAULT_PORT)).action(async (options) => {
-    const {
-      id: taskId,
-      timeout: timeoutStr,
-      port: portStr
-    } = options;
+    const { id: taskId, timeout: timeoutStr, port: portStr } = options;
     const timeout = parseInt(timeoutStr, 10);
     const port = parseInt(portStr, 10);
     const basePath = getStorageBasePath();
+    const startedAt = Date.now();
     console.log(chalk9.blue(`
 \u23F3 \u7B49\u5F85\u786E\u8BA4: ${taskId}`));
     console.log(chalk9.gray(`   \u8D85\u65F6: ${timeout}s | Server \u7AEF\u53E3: ${port}`));
     console.log(chalk9.gray(`   \u8FDE\u63A5 Server...`));
-    let result = await pollHttpApi(taskId, port, Math.min(timeout, 10));
+    const httpBudget = Math.min(timeout, 10);
+    let result = await pollHttpApi(taskId, port, httpBudget);
     if (result.success) {
       printResult(result.data);
       return;
@@ -1593,14 +1629,9 @@ function createAwaitConfirmCommand() {
 \u274C \u7528\u6237\u5DF2\u53D6\u6D88`));
       process.exit(EXIT_CODES.CANCELLED);
     }
-    const remainingTimeout = timeout - 10;
-    if (remainingTimeout <= 0) {
-      console.log(chalk9.red(`
-\u23F1\uFE0F  \u7B49\u5F85\u8D85\u65F6 (${timeout}s)`));
-      console.log(chalk9.gray(`   Server \u65E0\u54CD\u5E94\uFF0C\u4E14\u672A\u627E\u5230\u786E\u8BA4\u7ED3\u679C`));
-      process.exit(EXIT_CODES.TIMEOUT);
-    }
-    console.log(chalk9.yellow(`   Server \u4E0D\u53EF\u8FBE\uFF0C\u5207\u6362\u5230\u6587\u4EF6\u7CFB\u7EDF\u8F6E\u8BE2...`));
+    const elapsed = (Date.now() - startedAt) / 1e3;
+    const remainingTimeout = Math.max(0, timeout - elapsed);
+    console.log(chalk9.yellow(`   HTTP \u8F6E\u8BE2\u672A\u786E\u8BA4\uFF0C\u5207\u6362\u5230\u6587\u4EF6\u7CFB\u7EDF\u8F6E\u8BE2 (\u5269\u4F59 ${Math.ceil(remainingTimeout)}s)...`));
     result = await pollFilesystem(taskId, remainingTimeout, basePath);
     if (result.success) {
       printResult(result.data);
@@ -1638,8 +1669,497 @@ function createServeCommand() {
   });
 }
 
+// packages/cli/src/commands/detect.ts
+import { Command as Command12 } from "commander";
+
+// packages/cli/src/adapters/base.ts
+var DEFAULT_TRIGGER_RULES = [
+  {
+    name: "single-file-trivial",
+    description: "\u5355\u6587\u4EF6\u5C0F\u6539\u52A8\uFF08\u4FEE bug\u3001\u6539\u914D\u7F6E\u3001\u52A0\u6CE8\u91CA\u3001\u683C\u5F0F\u5316\u3001\u91CD\u547D\u540D\uFF09",
+    evaluate: (ctx) => (ctx.fileCount ?? 0) <= 1 && ctx.complexity !== "high" && !ctx.isNewFeature && !ctx.isBugFix && !ctx.hasArchitectureChange,
+    action: "skip",
+    priority: 100,
+    reason: "\u5355\u6587\u4EF6\u5C0F\u6539\u52A8\uFF0C\u65E0\u67B6\u6784\u5F71\u54CD"
+  },
+  {
+    name: "new-feature",
+    description: "\u65B0\u529F\u80FD\u5F00\u53D1",
+    evaluate: (ctx) => ctx.isNewFeature === true,
+    action: "require",
+    priority: 10,
+    reason: "\u65B0\u529F\u80FD\u5F00\u53D1\uFF0C\u5EFA\u8BAE\u8D70\u9700\u6C42\u786E\u8BA4\u6D41\u7A0B"
+  },
+  {
+    name: "architecture-change",
+    description: "\u6D89\u53CA\u67B6\u6784\u53D8\u66F4\u3001\u6280\u672F\u9009\u578B",
+    evaluate: (ctx) => ctx.hasArchitectureChange === true,
+    action: "require",
+    priority: 10,
+    reason: "\u6D89\u53CA\u67B6\u6784\u53D8\u66F4\uFF0C\u5FC5\u987B\u786E\u8BA4\u9700\u6C42"
+  },
+  {
+    name: "bug-fix-ambiguous",
+    description: "Bug \u4FEE\u590D\u4F46\u7F3A\u5C11\u95EE\u9898\u63CF\u8FF0\u548C\u5B9A\u4F4D\u4FE1\u606F",
+    evaluate: (ctx) => ctx.isBugFix === true && (!ctx.hasDetailedContext || ctx.hasAmbiguity === true),
+    action: "require",
+    priority: 15,
+    reason: "Bug \u4FEE\u590D\u9700\u786E\u8BA4\u95EE\u9898\u63CF\u8FF0\u548C\u5B9A\u4F4D\u4FE1\u606F"
+  },
+  {
+    name: "bug-fix-well-described",
+    description: "Bug \u4FEE\u590D\u4E14\u95EE\u9898\u63CF\u8FF0\u6E05\u6670\u3001\u5B9A\u4F4D\u4FE1\u606F\u5145\u5206",
+    evaluate: (ctx) => ctx.isBugFix === true && ctx.hasDetailedContext === true,
+    action: "suggest",
+    priority: 25,
+    reason: "Bug \u63CF\u8FF0\u6E05\u6670\uFF0C\u5EFA\u8BAE\u5FEB\u901F\u786E\u8BA4\u540E\u4FEE\u590D"
+  },
+  {
+    name: "multi-file-refactor",
+    description: "\u591A\u6587\u4EF6\u91CD\u6784\uFF08>2 \u4E2A\u6587\u4EF6\uFF09",
+    evaluate: (ctx) => (ctx.fileCount ?? 0) > 2 && !ctx.isBugFix,
+    action: "require",
+    priority: 20,
+    reason: "\u591A\u6587\u4EF6\u6539\u52A8\uFF0C\u5EFA\u8BAE\u786E\u8BA4\u5F71\u54CD\u8303\u56F4"
+  },
+  {
+    name: "ambiguous-requirement",
+    description: "\u9700\u6C42\u5B58\u5728\u6A21\u7CCA\u4E4B\u5904",
+    evaluate: (ctx) => ctx.hasAmbiguity === true,
+    action: "suggest",
+    priority: 30,
+    reason: "\u9700\u6C42\u5B58\u5728\u6A21\u7CCA\u4E4B\u5904\uFF0C\u5EFA\u8BAE\u6F84\u6E05"
+  },
+  {
+    name: "high-complexity",
+    description: "\u5F71\u54CD\u8303\u56F4\u4E0D\u6E05\u6670\u6216\u590D\u6742\u5EA6\u9AD8",
+    evaluate: (ctx) => ctx.complexity === "high",
+    action: "suggest",
+    priority: 40,
+    reason: "\u590D\u6742\u5EA6\u9AD8\uFF0C\u5F71\u54CD\u8303\u56F4\u4E0D\u591F\u6E05\u6670"
+  },
+  {
+    name: "medium-complexity",
+    description: "\u4E2D\u7B49\u590D\u6742\u5EA6\u9ED8\u8BA4\u5EFA\u8BAE",
+    evaluate: (ctx) => ctx.complexity === "medium",
+    action: "suggest",
+    priority: 50,
+    reason: "\u4E2D\u7B49\u590D\u6742\u5EA6\uFF0C\u5EFA\u8BAE\u786E\u8BA4\u9700\u6C42"
+  },
+  {
+    name: "default-skip",
+    description: "\u9ED8\u8BA4\u8DF3\u8FC7\uFF08\u4F4E\u590D\u6742\u5EA6\u4E14\u65E0\u89E6\u53D1\u6761\u4EF6\uFF09",
+    evaluate: () => true,
+    action: "skip",
+    priority: 999,
+    reason: "\u65E0\u89E6\u53D1\u6761\u4EF6\uFF0C\u53EF\u8DF3\u8FC7"
+  }
+];
+function evaluateRules(rules, context) {
+  const sorted = [...rules].sort((a, b) => a.priority - b.priority);
+  const matchedRules = sorted.map((rule) => ({
+    name: rule.name,
+    matched: rule.evaluate(context),
+    action: rule.action,
+    reason: rule.reason
+  }));
+  const matching = matchedRules.filter((r) => r.matched);
+  if (matching.length === 0) {
+    return {
+      shouldTrigger: true,
+      mode: "suggest",
+      reason: "\u65E0\u6CD5\u786E\u5B9A\uFF0C\u9ED8\u8BA4\u5EFA\u8BAE\u786E\u8BA4",
+      matchedRules
+    };
+  }
+  const first = matching[0];
+  const mode = first.action;
+  const shouldTrigger = mode !== "skip";
+  return {
+    shouldTrigger,
+    mode,
+    reason: first.reason,
+    matchedRules
+  };
+}
+var BaseAdapter = class {
+  get triggerRules() {
+    return DEFAULT_TRIGGER_RULES;
+  }
+  shouldTrigger(context) {
+    return evaluateRules(this.triggerRules, context);
+  }
+};
+
+// packages/cli/src/adapters/opencode.ts
+var opencodeAdapter = new class extends BaseAdapter {
+  id = "opencode";
+  name = "opencode";
+  displayName = "opencode";
+  integration = {
+    configFilePath: "~/.config/opencode/AGENTS.md",
+    configTemplate: `## Spec-Align \u9700\u6C42\u786E\u8BA4\u6D41\u7A0B\uFF08\u5F3A\u5236\uFF09
+
+\u5728\u7F16\u5199\u4EFB\u4F55\u4EE3\u7801\u4E4B\u524D\uFF0C\u5FC5\u987B\u6309\u4EE5\u4E0B\u6B65\u9AA4\u6267\u884C\uFF1A
+
+1. **\u5F3A\u5236\u68C0\u6D4B**\uFF1A\u8C03\u7528 \`spec-thought-align detect\` \u5224\u65AD\u662F\u5426\u9700\u8981\u9700\u6C42\u786E\u8BA4
+   \`\`\`
+   spec-thought-align detect --platform opencode --files <count> [--new-feature] [--architecture-change] [--has-ambiguity] [--complexity low|medium|high]
+   \`\`\`
+   - \u5982\u679C\u8FD4\u56DE \`mode: "require"\`\uFF0C\u5FC5\u987B\u8D70 spec-align \u6D41\u7A0B
+   - \u5982\u679C\u8FD4\u56DE \`mode: "suggest"\`\uFF0C\u4F7F\u7528 question \u5DE5\u5177\u8BE2\u95EE\u7528\u6237
+   - \u5982\u679C\u8FD4\u56DE \`mode: "skip"\`\uFF0C\u53EF\u76F4\u63A5\u65BD\u5DE5
+
+2. \u63D0\u4EA4\u5206\u6790\uFF1A
+   \`\`\`
+   spec-thought-align submit --id "<\u4EFB\u52A1\u540D>" --request "<\u7528\u6237\u539F\u59CB\u9700\u6C42>" --analysis "<\u4F60\u7684\u5B8C\u6574\u5206\u6790>" --wait
+   \`\`\`
+
+3. \u6309\u786E\u8BA4\u540E\u7684 JSON \u89C4\u7EA6\u65BD\u5DE5
+
+4. \u5B8C\u6210\u540E\u6807\u8BB0\uFF1A
+   \`\`\`
+   spec-thought-align complete --id "<\u4EFB\u52A1\u540D>" --summary "<\u505A\u4E86\u4EC0\u4E48>"
+   \`\`\``,
+    detectEnvVars: ["OPENCODE_"],
+    recommendedStrategy: "wait"
+  };
+  detectPlatform() {
+    return Object.keys(process.env).some((k) => k.startsWith("OPENCODE_"));
+  }
+}();
+
+// packages/cli/src/adapters/claude-code.ts
+var claudeCodeAdapter = new class extends BaseAdapter {
+  id = "claude-code";
+  name = "claude-code";
+  displayName = "Claude Code / OpenClaw";
+  integration = {
+    configFilePath: "project-root/.claude/settings.json \u6216 CLAUDE.md",
+    configTemplate: `\u5728\u65BD\u5DE5\u524D\u5FC5\u987B\u8C03\u7528 spec-thought-align detect \u8FDB\u884C\u89E6\u53D1\u5224\u65AD\uFF1A
+
+\`\`\`bash
+spec-thought-align detect --platform claude-code --files <count> [--new-feature] [--architecture-change] [--has-ambiguity] [--complexity low|medium|high]
+\`\`\`
+
+\u5982\u679C mode \u4E3A require \u6216 suggest\uFF0C\u6267\u884C spec-align \u6D41\u7A0B\uFF08\u63A8\u8350 --no-wait \u6A21\u5F0F\uFF09\uFF1A
+\`\`\`bash
+spec-thought-align submit --id "<\u4EFB\u52A1\u540D>" --request "<\u7528\u6237\u9700\u6C42>" --analysis "<\u5206\u6790>" --no-wait
+spec-thought-align await-confirm --id "<\u4EFB\u52A1\u540D>"
+\`\`\``,
+    detectEnvVars: ["CLAUDE_CODE_", "ANTHROPIC_API_KEY"],
+    recommendedStrategy: "no-wait",
+    knownTimeoutSeconds: 120
+  };
+  detectPlatform() {
+    return Object.keys(process.env).some(
+      (k) => k.startsWith("CLAUDE_CODE_") || k === "ANTHROPIC_API_KEY"
+    );
+  }
+}();
+
+// packages/cli/src/adapters/cursor.ts
+var cursorAdapter = new class extends BaseAdapter {
+  id = "cursor";
+  name = "cursor";
+  displayName = "Cursor IDE";
+  integration = {
+    configFilePath: ".cursor/rules \u6216 .cursorrules",
+    configTemplate: `\u5728\u4FEE\u6539\u4EE3\u7801\u524D\u8C03\u7528 detect \u5224\u65AD\u89E6\u53D1\uFF1A
+
+\`\`\`bash
+spec-thought-align detect --platform cursor --files <count> [--complexity high]
+\`\`\`
+
+\u5982\u679C mode \u4E3A require\uFF0C\u5FC5\u987B\u8D70 spec-align \u6D41\u7A0B\uFF08\u4F7F\u7528 --no-wait \u6A21\u5F0F\uFF09\uFF1A
+\`\`\`bash
+spec-thought-align submit --id "<\u4EFB\u52A1\u540D>" --request "<\u7528\u6237\u9700\u6C42>" --analysis "<\u5206\u6790>" --no-wait --agent-type cursor
+spec-thought-align await-confirm --id "<\u4EFB\u52A1\u540D>"
+\`\`\``,
+    detectEnvVars: ["CURSOR_TRACE_ID", "VSCODE_CWD"],
+    recommendedStrategy: "no-wait",
+    knownTimeoutSeconds: 300
+  };
+  detectPlatform() {
+    return !!(process.env.VSCODE_CWD || process.env.CURSOR_TRACE_ID);
+  }
+}();
+
+// packages/cli/src/adapters/aider.ts
+var aiderAdapter = new class extends BaseAdapter {
+  id = "aider";
+  name = "aider";
+  displayName = "Aider";
+  integration = {
+    configFilePath: ".aider.conf.yml \u6216 CONVENTIONS.md",
+    configTemplate: `\u5728\u7F16\u5199\u4EE3\u7801\u524D\uFF0C\u5FC5\u987B\u8C03\u7528 detect\uFF1A
+
+\`\`\`bash
+spec-thought-align detect --platform aider --files <count>
+\`\`\`
+
+\u5982\u679C mode \u4E3A require \u6216 suggest\uFF0C\u4F7F\u7528 --wait \u6A21\u5F0F\uFF1A
+\`\`\`bash
+spec-thought-align submit --id "<\u4EFB\u52A1\u540D>" --request "<\u7528\u6237\u9700\u6C42>" --analysis "<\u5206\u6790>" --wait --agent-type aider
+\`\`\``,
+    detectEnvVars: ["AIDER_"],
+    recommendedStrategy: "wait"
+  };
+  detectPlatform() {
+    return Object.keys(process.env).some((k) => k.startsWith("AIDER_"));
+  }
+}();
+
+// packages/cli/src/adapters/windsurf.ts
+var windsurfAdapter = new class extends BaseAdapter {
+  id = "windsurf";
+  name = "windsurf";
+  displayName = "Windsurf IDE";
+  integration = {
+    configFilePath: ".windsurfrules",
+    configTemplate: `\u5728\u4FEE\u6539\u4EE3\u7801\u524D\u8C03\u7528 detect\uFF1A
+
+\`\`\`bash
+spec-thought-align detect --platform windsurf --files <count>
+\`\`\`
+
+\u5982\u679C mode \u4E3A require\uFF0C\u4F7F\u7528 --no-wait \u6A21\u5F0F\uFF1A
+\`\`\`bash
+spec-thought-align submit --id "<\u4EFB\u52A1\u540D>" --request "<\u7528\u6237\u9700\u6C42>" --analysis "<\u5206\u6790>" --no-wait --agent-type cursor
+spec-thought-align await-confirm --id "<\u4EFB\u52A1\u540D>"
+\`\`\``,
+    detectEnvVars: ["WINDSURF_"],
+    recommendedStrategy: "no-wait",
+    knownTimeoutSeconds: 300
+  };
+  detectPlatform() {
+    return Object.keys(process.env).some((k) => k.startsWith("WINDSURF_"));
+  }
+}();
+
+// packages/cli/src/adapters/gemini-cli.ts
+var geminiCliAdapter = new class extends BaseAdapter {
+  id = "gemini-cli";
+  name = "gemini-cli";
+  displayName = "Gemini CLI";
+  integration = {
+    configFilePath: ".gemini/settings.json",
+    configTemplate: `\u5728\u7F16\u5199\u4EE3\u7801\u524D\uFF0C\u5FC5\u987B\u8C03\u7528 detect\uFF1A
+
+\`\`\`bash
+spec-thought-align detect --platform gemini-cli --files <count>
+\`\`\`
+
+\u5982\u679C mode \u4E3A require\uFF0C\u4F7F\u7528 --no-wait \u6A21\u5F0F\uFF08Gemini CLI \u53EF\u80FD\u6709\u8D85\u65F6\uFF09\uFF1A
+\`\`\`bash
+spec-thought-align submit --id "<\u4EFB\u52A1\u540D>" --request "<\u7528\u6237\u9700\u6C42>" --analysis "<\u5206\u6790>" --no-wait --agent-type claude-code
+spec-thought-align await-confirm --id "<\u4EFB\u52A1\u540D>"
+\`\`\``,
+    detectEnvVars: ["GEMINI_CLI_", "GOOGLE_API_KEY"],
+    recommendedStrategy: "no-wait",
+    knownTimeoutSeconds: 300
+  };
+  detectPlatform() {
+    return Object.keys(process.env).some(
+      (k) => k.startsWith("GEMINI_CLI_") || k === "GOOGLE_API_KEY"
+    );
+  }
+}();
+
+// packages/cli/src/adapters/openai-codex.ts
+var openaiCodexAdapter = new class extends BaseAdapter {
+  id = "openai-codex";
+  name = "openai-codex";
+  displayName = "OpenAI Codex CLI";
+  integration = {
+    configFilePath: ".codex/config.md",
+    configTemplate: `\u5728\u7F16\u5199\u4EE3\u7801\u524D\uFF0C\u5FC5\u987B\u8C03\u7528 detect\uFF1A
+
+\`\`\`bash
+spec-thought-align detect --platform openai-codex --files <count>
+\`\`\`
+
+\u5982\u679C mode \u4E3A require\uFF0C\u4F7F\u7528 --no-wait \u6A21\u5F0F\uFF1A
+\`\`\`bash
+spec-thought-align submit --id "<\u4EFB\u52A1\u540D>" --request "<\u7528\u6237\u9700\u6C42>" --analysis "<\u5206\u6790>" --no-wait --agent-type generic
+spec-thought-align await-confirm --id "<\u4EFB\u52A1\u540D>"
+\`\`\``,
+    detectEnvVars: ["OPENAI_API_KEY"],
+    recommendedStrategy: "no-wait",
+    knownTimeoutSeconds: 300
+  };
+  detectPlatform() {
+    return Object.keys(process.env).some(
+      (k) => k === "OPENAI_API_KEY" || k.startsWith("CODEX_")
+    );
+  }
+}();
+
+// packages/cli/src/adapters/generic.ts
+var genericAdapter = new class extends BaseAdapter {
+  id = "generic";
+  name = "generic";
+  displayName = "Unknown Agent";
+  integration = {
+    configFilePath: "AGENTS.md \u6216\u81EA\u5B9A\u4E49\u914D\u7F6E",
+    configTemplate: `\u5728\u7F16\u5199\u4EE3\u7801\u524D\uFF0C\u8C03\u7528 detect \u5224\u65AD\u662F\u5426\u9700\u8981\u9700\u6C42\u786E\u8BA4\uFF1A
+
+\`\`\`bash
+spec-thought-align detect --files <count> [--new-feature] [--architecture-change]
+\`\`\`
+
+\u5982\u679C shouldTrigger \u4E3A true\uFF0C\u6267\u884C spec-align \u6D41\u7A0B\uFF1A
+\`\`\`bash
+spec-thought-align submit --id "<\u4EFB\u52A1\u540D>" --request "<\u7528\u6237\u9700\u6C42>" --analysis "<\u5206\u6790>" --no-wait
+\`\`\``,
+    detectEnvVars: [],
+    recommendedStrategy: "no-wait",
+    knownTimeoutSeconds: 300
+  };
+  detectPlatform() {
+    return false;
+  }
+}();
+
+// packages/cli/src/adapters/registry.ts
+var ALL_ADAPTERS = [
+  opencodeAdapter,
+  claudeCodeAdapter,
+  cursorAdapter,
+  aiderAdapter,
+  windsurfAdapter,
+  geminiCliAdapter,
+  openaiCodexAdapter,
+  genericAdapter
+];
+function getAdapter(platformId) {
+  return ALL_ADAPTERS.find((a) => a.id === platformId);
+}
+function resolveAdapter(platformId) {
+  if (platformId) {
+    const explicit = getAdapter(platformId);
+    if (explicit) return explicit;
+  }
+  const detected = ALL_ADAPTERS.find((a) => a.detectPlatform());
+  if (detected) return detected;
+  return genericAdapter;
+}
+function listAdapters() {
+  return ALL_ADAPTERS;
+}
+
+// packages/cli/src/commands/detect.ts
+function createDetectCommand() {
+  return new Command12("detect").description("\u68C0\u6D4B\u5F53\u524D\u4E0A\u4E0B\u6587\u662F\u5426\u9700\u8981\u89E6\u53D1 spec-align \u9700\u6C42\u786E\u8BA4\u6D41\u7A0B").option("--platform <type>", "\u76EE\u6807\u5E73\u53F0 (opencode/claude-code/cursor/aider/windsurf/gemini-cli/openai-codex)").option("--files <count>", "\u6D89\u53CA\u7684\u6587\u4EF6\u6570\u91CF", parseInt).option("--file-list <list>", "\u6D89\u53CA\u7684\u6587\u4EF6\u5217\u8868\uFF08\u9017\u53F7\u5206\u9694\uFF09").option("--request <text>", "\u7528\u6237\u539F\u59CB\u9700\u6C42\u6587\u672C").option("--new-feature", "\u662F\u5426\u4E3A\u65B0\u529F\u80FD\u5F00\u53D1").option("--bug-fix", "\u662F\u5426\u4E3A Bug \u4FEE\u590D").option("--architecture-change", "\u662F\u5426\u6D89\u53CA\u67B6\u6784\u53D8\u66F4").option("--has-ambiguity", "\u9700\u6C42\u662F\u5426\u5B58\u5728\u6A21\u7CCA\u4E4B\u5904").option("--has-detailed-context", "Bug \u63CF\u8FF0\u662F\u5426\u5305\u542B\u6E05\u6670\u7684\u5B9A\u4F4D\u4FE1\u606F").option("--complexity <level>", "\u590D\u6742\u5EA6 (low/medium/high)", "medium").option("--list-platforms", "\u5217\u51FA\u6240\u6709\u652F\u6301\u7684\u5E73\u53F0").action(async (options) => {
+    if (options.listPlatforms) {
+      const adapters = listAdapters();
+      console.log(JSON.stringify(
+        adapters.map((a) => ({
+          id: a.id,
+          name: a.displayName,
+          strategy: a.integration.recommendedStrategy,
+          timeout: a.integration.knownTimeoutSeconds
+        })),
+        null,
+        2
+      ));
+      return;
+    }
+    const adapter = resolveAdapter(options.platform);
+    const context = {
+      fileCount: options.files,
+      files: options.fileList ? options.fileList.split(",").map((s) => s.trim()) : void 0,
+      complexity: options.complexity || "medium",
+      userRequest: options.request,
+      isNewFeature: options.newFeature || void 0,
+      isBugFix: options.bugFix || void 0,
+      hasArchitectureChange: options.architectureChange || void 0,
+      hasAmbiguity: options.hasAmbiguity || void 0,
+      hasDetailedContext: options.hasDetailedContext || void 0
+    };
+    const result = adapter.shouldTrigger(context);
+    console.log(JSON.stringify({
+      platform: adapter.id,
+      platformName: adapter.displayName,
+      recommendedStrategy: adapter.integration.recommendedStrategy,
+      ...result
+    }, null, 2));
+  });
+}
+
+// packages/cli/src/commands/quick.ts
+import { Command as Command13 } from "commander";
+function createQuickCommand() {
+  return new Command13("quick").description("\u5FEB\u901F\u63D0\u4EA4\u9700\u6C42\uFF08\u7528\u6237\u7AEF\u81EA\u4E3B\u89E6\u53D1\uFF0C\u81EA\u52A8\u751F\u6210 ID \u548C\u5206\u6790\uFF09").argument("<requirement>", "\u7528\u6237\u9700\u6C42\u6587\u672C").option("--wait", "\u963B\u585E\u7B49\u5F85\u7528\u6237\u786E\u8BA4", true).option("--no-wait", "\u7ACB\u5373\u8FD4\u56DE").option("--timeout <seconds>", "\u8D85\u65F6\u79D2\u6570").option("--port <port>", "\u6307\u5B9A HTTP Server \u7AEF\u53E3").option("--agent-type <type>", "Agent \u7C7B\u578B").action(async (requirement, options) => {
+    const id = generateQuickId(requirement);
+    const analysis = `\u7528\u6237\u9700\u6C42: ${requirement}
+
+\u6B64\u9700\u6C42\u7531\u7528\u6237\u7AEF\u81EA\u4E3B\u89E6\u53D1 (quick command)\uFF0C\u672A\u7ECF AI Agent \u6DF1\u5EA6\u5206\u6790\u3002\u89E3\u6790\u5668\u5C06\u4ECE\u9700\u6C42\u6587\u672C\u4E2D\u63D0\u53D6\u5173\u952E\u4FE1\u606F\u3002`;
+    await runSubmit({
+      id,
+      request: requirement,
+      analysis,
+      wait: options.wait,
+      timeout: options.timeout,
+      port: options.port,
+      agentType: options.agentType
+    });
+  });
+}
+function generateQuickId(text) {
+  const slug = text.replace(/[^\u4e00-\u9fa5a-zA-Z0-9\s-]/g, "").trim().replace(/\s+/g, "-").slice(0, 40).replace(/-+$/, "").toLowerCase();
+  const timestamp = Date.now().toString(36);
+  return slug ? `quick-${slug}-${timestamp}` : `quick-${timestamp}`;
+}
+
 // packages/cli/src/index.ts
-var program = new Command12();
+var KNOWN_COMMANDS = [
+  "submit",
+  "fetch",
+  "status",
+  "list",
+  "complete",
+  "config",
+  "split",
+  "start",
+  "verify",
+  "await-confirm",
+  "__serve",
+  "detect",
+  "quick",
+  "--help",
+  "-h",
+  "--version",
+  "-V"
+];
+function tryQuickSugar() {
+  const args = process.argv.slice(2);
+  if (args.length === 0) return false;
+  const first = args[0];
+  if (KNOWN_COMMANDS.includes(first)) return false;
+  if (first.startsWith("-")) return false;
+  const reqParts = [];
+  const flagParts = [];
+  let inFlags = false;
+  for (const arg of args) {
+    if (!inFlags && arg.startsWith("-")) {
+      inFlags = true;
+    }
+    if (inFlags) {
+      flagParts.push(arg);
+    } else {
+      reqParts.push(arg);
+    }
+  }
+  const requirement = reqParts.join(" ");
+  const merged = [process.argv[0], process.argv[1], "quick", requirement, ...flagParts];
+  if (!flagParts.includes("--no-wait") && !flagParts.includes("--wait")) {
+    merged.push("--wait");
+  }
+  process.argv = merged;
+  return true;
+}
+var program = new Command14();
 program.name("spec-thought-align").description("AI Coding Agent \u65BD\u5DE5\u524D\u7684\u9700\u6C42\u89C4\u7EA6\u53EF\u89C6\u5316\u786E\u8BA4\u9762\u677F").version("0.1.0");
 program.addCommand(createSubmitCommand());
 program.addCommand(createFetchCommand());
@@ -1651,5 +2171,8 @@ program.addCommand(createStartCommand());
 program.addCommand(createVerifyCommand());
 program.addCommand(createAwaitConfirmCommand());
 program.addCommand(createConfigCommand());
+program.addCommand(createDetectCommand());
+program.addCommand(createQuickCommand());
 program.addCommand(createServeCommand(), { hidden: true });
+tryQuickSugar();
 program.parse(process.argv);

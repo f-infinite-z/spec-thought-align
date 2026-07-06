@@ -4,13 +4,26 @@
 
 若 CLI 不可用，跳过此流程直接施工。
 
-## 何时触发
+## 触发条件（半硬约束）
 
-**跳过：** 单文件修 bug、改配置、加注释、格式化、重命名，或需求无歧义。
+在分析用户需求后，**必须先调用 detect 命令**进行程序化判断：
 
-**触发：** 新功能、多文件重构、需求模糊、架构变更、影响范围不清晰。
+```bash
+spec-thought-align detect \
+  --platform cursor \
+  --files <预估修改文件数> \
+  --request "<用户原始需求>" \
+  [--new-feature] \
+  [--architecture-change] \
+  [--has-ambiguity] \
+  [--complexity low|medium|high]
+```
 
-触发时告知用户后将需求写入分析，执行下面的流程。
+detect 返回 JSON，根据 `mode` 决定：
+
+- `mode: "require"` — **必须**走 spec-align 流程
+- `mode: "suggest"` — **应该**告知用户并询问
+- `mode: "skip"` — **可以**跳过
 
 ## 流程
 

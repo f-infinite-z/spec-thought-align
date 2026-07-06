@@ -197,3 +197,60 @@ export interface SubTaskStatusResult {
   agentNote: string;
   dependencies: string[];
 }
+
+// ============================================================
+// 平台适配器（半硬约束触发规则）
+// ============================================================
+
+export type TriggerAction = 'skip' | 'suggest' | 'require';
+
+export interface TriggerContext {
+  fileCount?: number;
+  files?: string[];
+  complexity?: 'low' | 'medium' | 'high';
+  userRequest?: string;
+  isNewFeature?: boolean;
+  isBugFix?: boolean;
+  hasArchitectureChange?: boolean;
+  hasAmbiguity?: boolean;
+  hasDetailedContext?: boolean;
+}
+
+export interface TriggerRuleDef {
+  name: string;
+  description: string;
+  evaluate: (ctx: TriggerContext) => boolean;
+  action: TriggerAction;
+  priority: number;
+  reason: string;
+}
+
+export interface TriggerResult {
+  shouldTrigger: boolean;
+  mode: TriggerAction;
+  reason: string;
+  matchedRules: Array<{
+    name: string;
+    matched: boolean;
+    action: TriggerAction;
+    reason: string;
+  }>;
+}
+
+export interface PlatformIntegration {
+  configFilePath: string;
+  configTemplate: string;
+  detectEnvVars: string[];
+  recommendedStrategy: 'wait' | 'no-wait';
+  knownTimeoutSeconds?: number;
+}
+
+export interface PlatformAdapter {
+  id: string;
+  name: string;
+  displayName: string;
+  integration: PlatformIntegration;
+  triggerRules: TriggerRuleDef[];
+  shouldTrigger(context: TriggerContext): TriggerResult;
+  detectPlatform(): boolean;
+}

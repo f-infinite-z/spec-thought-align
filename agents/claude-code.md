@@ -14,24 +14,26 @@ node packages/cli/dist/index.js
 
 ---
 
-## 触发条件
+## 触发条件（半硬约束）
 
-在编写代码前，按以下规则判断是否需要走 Spec-Align 流程：
+在分析用户需求后，**必须先调用 detect 命令**进行程序化判断：
 
-**跳过（直接施工）：**
+```bash
+spec-thought-align detect \
+  --platform claude-code \
+  --files <预估修改文件数> \
+  --request "<用户原始需求>" \
+  [--new-feature] \
+  [--architecture-change] \
+  [--has-ambiguity] \
+  [--complexity low|medium|high]
+```
 
-- 单文件小改动（修 bug、改配置、加注释、格式化、重命名）
-- 需求非常明确，无歧义，无假设
-- 不涉及架构决策或多模块联动
+detect 返回 JSON，根据 `mode` 决定：
 
-**触发（使用 Spec-Align）：**
-
-- 新功能开发、多文件重构
-- 需求存在模糊之处，有假设或不确定
-- 涉及架构变更、技术选型
-- 影响范围不清晰
-
-触发时，先告知用户："将使用 Spec-Align 确认需求"，然后执行下面的流程。
+- `mode: "require"` — **必须**走 spec-align 流程
+- `mode: "suggest"` — **应该**告知用户并询问是否使用
+- `mode: "skip"` — **可以**跳过，直接施工
 
 ---
 

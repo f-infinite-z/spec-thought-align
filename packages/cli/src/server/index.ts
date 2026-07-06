@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type Context, type Next } from 'hono';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import type { Server } from 'node:http';
@@ -10,6 +10,39 @@ import { readSpec, writeSpec, readStatus, writeStatus, writeResult } from '../st
 
 let server: Server | null = null;
 let currentPort = 0;
+
+function ensureDir(dirPath: string): void {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+  }
+}
+
+function getLogDir(): string {
+  return path.join(process.cwd(), STORAGE_DIR, '.server-logs');
+}
+
+function writeRequestLog(entry: Record<string, unknown>): void {
+  try {
+    const logDir = getLogDir();
+    ensureDir(logDir);
+    const logPath = path.join(logDir, 'requests.log');
+    const line = JSON.stringify({ timestamp: new Date().toISOString(), ...entry }) + '\n';
+    fs.appendFileSync(logPath, line, 'utf-8');
+  } catch {
+    // 静默忽略 — 记录日志本身不应该影响功能
+  }
+}
+
+function requestLogger(): (c: Context, next: Next) => Promise<void> {
+  return async (c, next) => {
+    const method = c.req.method;
+    const url = c.req.url;
+    process.stdout.write(`[server] ← ${method} ${url}\n`);
+    await next();
+    process.stdout.write(`[server] → ${method} ${url} ${c.res.status}\n`);
+    writeRequestLog({ method, url, status: c.res.status });
+  };
+}
 
 /** UI 构建产物路径 */
 function getUiDistPath(): string {
@@ -44,20 +77,9 @@ export async function ensureServer(requestedPort?: number): Promise<number> {
   const app = new Hono();
   const uiDistPath = getUiDistPath();
 
-  // ---- 静态文件（构建后的 UI JS/CSS） ----
-  if (fs.existsSync(uiDistPath)) {
-    app.use('/assets/*', serveStatic({ root: uiDistPath }));
-    // 也支持不带 /assets 前缀的路径
-    app.use('/*', serveStatic({ root: uiDistPath, rewriteRequestPath: (p) => p }));
-  }
+  app.use('*', requestLogger());
 
-  // ---- UI 页面入口 ----
-  app.get('/task/:id', (c) => {
-    const taskId = c.req.param('id');
-    return c.html(serveUiPage(taskId));
-  });
-
-  // ---- API 路由 ----
+  // ---- API 路由（必须最先匹配） ----
 
   app.get('/api/task/:id', (c) => {
     const taskId = c.req.param('id');
@@ -69,7 +91,6 @@ export async function ensureServer(requestedPort?: number): Promise<number> {
         data: { ...spec, meta: { ...spec.meta, status: statusData.status } },
       });
     } catch (err) {
-      console.error(`[server] GET /api/task/${taskId} error:`, err);
       return c.json({ success: false, error: 'Task not found' }, 404);
     }
   });
@@ -87,13 +108,13 @@ export async function ensureServer(requestedPort?: number): Promise<number> {
       writeSpec(taskId, spec);
       return c.json({ success: true });
     } catch (err) {
-      console.error(`[server] POST /api/task/${taskId}/spec error:`, err);
       return c.json({ success: false, error: 'Failed to save spec' }, 500);
     }
   });
 
   app.post('/api/task/:id/confirm', (c) => {
     const taskId = c.req.param('id');
+    process.stdout.write(`[server] CONFIRM handler reached for task ${taskId}\n`);
     try {
       writeStatus(taskId, 'confirmed');
       const spec = readSpec(taskId);
@@ -101,9 +122,10 @@ export async function ensureServer(requestedPort?: number): Promise<number> {
       spec.meta.confirmedAt = new Date().toISOString();
       writeSpec(taskId, spec);
       writeResult(taskId, spec);
+      process.stdout.write(`[server] CONFIRM done for task ${taskId}\n`);
       return c.json({ success: true, message: '已确认' });
     } catch (err) {
-      console.error(`[server] POST /api/task/${taskId}/confirm error:`, err);
+      process.stdout.write(`[server] CONFIRM error for task ${taskId}: ${String(err)}\n`);
       return c.json({ success: false, error: 'Failed to confirm task' }, 500);
     }
   });
@@ -114,7 +136,6 @@ export async function ensureServer(requestedPort?: number): Promise<number> {
       writeStatus(taskId, 'cancelled');
       return c.json({ success: true, message: '已取消' });
     } catch (err) {
-      console.error(`[server] POST /api/task/${taskId}/cancel error:`, err);
       return c.json({ success: false, error: 'Failed to cancel task' }, 500);
     }
   });
@@ -124,10 +145,20 @@ export async function ensureServer(requestedPort?: number): Promise<number> {
       const tasks = listAllTasks();
       return Response.json({ success: true, data: tasks });
     } catch (err) {
-      console.error('[server] GET /api/tasks error:', err);
       return Response.json({ success: false, error: 'Failed to list tasks' }, { status: 500 });
     }
   });
+
+  // ---- UI 页面入口 ----
+  app.get('/task/:id', (c) => {
+    const taskId = c.req.param('id');
+    return c.html(serveUiPage(taskId));
+  });
+
+  // ---- 静态资源（仅 /assets/ 目录） ----
+  if (fs.existsSync(uiDistPath)) {
+    app.use('/assets/*', serveStatic({ root: uiDistPath }));
+  }
 
   // 启动
   const port = requestedPort || 5678;
@@ -155,7 +186,7 @@ function listAllTasks(): unknown[] {
   if (!fs.existsSync(storagePath)) return [];
   const entries = fs.readdirSync(storagePath, { withFileTypes: true });
   return entries
-    .filter((e) => e.isDirectory())
+    .filter((e) => e.isDirectory() && !e.name.startsWith('.'))
     .map((e) => {
       try {
         const spec = readSpec(e.name);

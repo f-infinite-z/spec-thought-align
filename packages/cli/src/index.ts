@@ -11,6 +11,61 @@ import { createStartCommand } from './commands/start.js';
 import { createVerifyCommand } from './commands/verify.js';
 import { createAwaitConfirmCommand } from './commands/await-confirm.js';
 import { createServeCommand } from './commands/__serve.js';
+import { createDetectCommand } from './commands/detect.js';
+import { createQuickCommand } from './commands/quick.js';
+
+const KNOWN_COMMANDS = [
+  'submit',
+  'fetch',
+  'status',
+  'list',
+  'complete',
+  'config',
+  'split',
+  'start',
+  'verify',
+  'await-confirm',
+  '__serve',
+  'detect',
+  'quick',
+  '--help',
+  '-h',
+  '--version',
+  '-V',
+];
+
+function tryQuickSugar(): boolean {
+  const args = process.argv.slice(2);
+  if (args.length === 0) return false;
+
+  const first = args[0];
+  if (KNOWN_COMMANDS.includes(first)) return false;
+  if (first.startsWith('-')) return false;
+
+  const reqParts: string[] = [];
+  const flagParts: string[] = [];
+  let inFlags = false;
+  for (const arg of args) {
+    if (!inFlags && arg.startsWith('-')) {
+      inFlags = true;
+    }
+    if (inFlags) {
+      flagParts.push(arg);
+    } else {
+      reqParts.push(arg);
+    }
+  }
+
+  const requirement = reqParts.join(' ');
+  const merged = [process.argv[0], process.argv[1], 'quick', requirement, ...flagParts];
+
+  if (!flagParts.includes('--no-wait') && !flagParts.includes('--wait')) {
+    merged.push('--wait');
+  }
+
+  process.argv = merged;
+  return true;
+}
 
 const program = new Command();
 
@@ -29,6 +84,9 @@ program.addCommand(createStartCommand());
 program.addCommand(createVerifyCommand());
 program.addCommand(createAwaitConfirmCommand());
 program.addCommand(createConfigCommand());
+program.addCommand(createDetectCommand());
+program.addCommand(createQuickCommand());
 program.addCommand(createServeCommand(), { hidden: true });
 
+tryQuickSugar();
 program.parse(process.argv);

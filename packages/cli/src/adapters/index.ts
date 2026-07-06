@@ -1,0 +1,10 @@
+export { BaseAdapter, DEFAULT_TRIGGER_RULES, evaluateRules } from './base.js';
+export { getAdapter, resolveAdapter, listAdapters } from './registry.js';
+export { opencodeAdapter } from './opencode.js';
+export { claudeCodeAdapter } from './claude-code.js';
+export { cursorAdapter } from './cursor.js';
+export { aiderAdapter } from './aider.js';
+export { windsurfAdapter } from './windsurf.js';
+export { geminiCliAdapter } from './gemini-cli.js';
+export { openaiCodexAdapter } from './openai-codex.js';
+export { genericAdapter } from './generic.js';

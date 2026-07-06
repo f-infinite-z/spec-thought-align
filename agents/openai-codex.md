@@ -1,62 +1,63 @@
-# Spec-Align Integration
+# Spec-Align 需求确认
 
-Install: `npm i -g spec-thought-align` or use local path `node packages/cli/dist/index.js`.
+安装：`npm i -g spec-thought-align` 或使用本地路径 `node packages/cli/dist/index.js`。
 
-If the CLI is unavailable, skip this workflow and proceed directly.
+若 CLI 不可用，跳过此流程直接施工。
 
-## When to Trigger
+## 触发条件（半硬约束）
 
-**Skip:** Single-file bug fixes, config changes, comments, formatting, renames, or requirements with zero ambiguity.
+在分析用户需求后，**必须先调用 detect 命令**进行程序化判断：
 
-**Trigger:** New features, multi-file refactoring, unclear requirements, architecture changes, or broad impact scope.
+```bash
+spec-thought-align detect \
+  --platform openai-codex \
+  --files <预估修改文件数> \
+  --request "<用户原始需求>" \
+  [--new-feature] \
+  [--architecture-change] \
+  [--has-ambiguity] \
+  [--complexity low|medium|high]
+```
 
-When triggered, inform the user first, then execute the workflow below.
+detect 返回 JSON，根据 `mode` 决定：
 
-## Workflow
+- `mode: "require"` — **必须**走 spec-align 流程
+- `mode: "suggest"` — **应该**告知用户并询问
+- `mode: "skip"` — **可以**跳过
 
-> Codex CLI has exec timeout. Use `--no-wait` + `await-confirm` to avoid losing results.
+## 流程
 
-### Step 1: Submit
+Codex 可能有超时限制，使用 --no-wait + await-confirm 模式。
+
+### 1. 提交
 
 ```bash
 spec-thought-align submit \
-  --id "<task-id>" \
-  --request "<user request>" \
-  --analysis "<your analysis>" \
+  --id "<任务名>" \
+  --request "<用户原始需求>" \
+  --analysis "<你的完整分析>" \
   --no-wait
 ```
 
-Creates `.spec-thought-align/<task-id>/spec.json` and starts the visual panel server on port 5678. Share the panel URL with the user.
-
-### Step 2: Wait for Confirmation
+### 2. 等待确认
 
 ```bash
-spec-thought-align await-confirm --id "<task-id>" --timeout 600
+spec-thought-align await-confirm --id "<任务名>" --timeout 600
 ```
 
-Polls the server via HTTP API first, falls back to filesystem polling if unreachable. Outputs the confirmed spec as JSON on success. Default timeout: 600s.
+### 3. 施工
 
-If the process is killed by Codex timeout, re-run this command in a new session. Data persists in `.spec-thought-align/<task-id>/spec.json`.
+严格按规约执行。
 
-### Step 3: Build
-
-Follow the confirmed JSON spec strictly:
-
-- `scope.inScope` / `scope.outOfScope` — scope boundaries
-- `questions[].userAnswer` — user clarifications
-- `plan.components` / `plan.techStack` — architecture and stack
-
-### Step 4: Complete
+### 4. 完成
 
 ```bash
-spec-thought-align complete --id "<task-id>" --summary "<summary>"
+spec-thought-align complete --id "<任务名>" --summary "<摘要>"
 ```
 
-## Fallback
-
-If the CLI is unavailable or the server has shut down, read files directly:
+## 文件兜底
 
 ```bash
-cat .spec-thought-align/<task-id>/result.json   # preferred
-cat .spec-thought-align/<task-id>/spec.json     # fallback
+cat .spec-thought-align/<任务名>/result.json   # 优先
+cat .spec-thought-align/<任务名>/spec.json     # 兜底
 ```

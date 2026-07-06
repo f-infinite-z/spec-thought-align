@@ -113,13 +113,15 @@ export function createAwaitConfirmCommand(): Command {
       const timeout = parseInt(timeoutStr, 10);
       const port = parseInt(portStr, 10);
       const basePath = getStorageBasePath();
+      const startedAt = Date.now();
 
       console.log(chalk.blue(`\n⏳ 等待确认: ${taskId}`));
       console.log(chalk.gray(`   超时: ${timeout}s | Server 端口: ${port}`));
 
       // 1. Try HTTP API polling (faster, confirms server is alive)
       console.log(chalk.gray(`   连接 Server...`));
-      let result = await pollHttpApi(taskId, port, Math.min(timeout, 10));
+      const httpBudget = Math.min(timeout, 10);
+      let result = await pollHttpApi(taskId, port, httpBudget);
 
       if (result.success) {
         printResult(result.data);
@@ -132,14 +134,14 @@ export function createAwaitConfirmCommand(): Command {
       }
 
       // 2. HTTP failed or server not reachable, fallback to filesystem polling
-      const remainingTimeout = timeout - 10;
-      if (remainingTimeout <= 0) {
-        console.log(chalk.red(`\n⏱️  等待超时 (${timeout}s)`));
-        console.log(chalk.gray(`   Server 无响应，且未找到确认结果`));
-        process.exit(EXIT_CODES.TIMEOUT);
-      }
+      const elapsed = (Date.now() - startedAt) / 1000;
+      const remainingTimeout = Math.max(0, timeout - elapsed);
 
-      console.log(chalk.yellow(`   Server 不可达，切换到文件系统轮询...`));
+      console.log(
+        chalk.yellow(
+          `   HTTP 轮询未确认，切换到文件系统轮询 (剩余 ${Math.ceil(remainingTimeout)}s)...`,
+        ),
+      );
       result = await pollFilesystem(taskId, remainingTimeout, basePath);
 
       if (result.success) {

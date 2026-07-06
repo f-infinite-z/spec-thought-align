@@ -84,9 +84,10 @@ export function writeStatus(
 ): void {
   const dir = ensureTaskDir(taskId, basePath);
   const filePath = path.join(dir, STATUS_FILE);
+  const prev = readStatus(taskId, basePath);
   const data = {
     status,
-    createdAt: new Date().toISOString(),
+    createdAt: prev.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');

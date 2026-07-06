@@ -46,7 +46,7 @@ export const DEFAULT_TIMEOUT_SECONDS = 600; // 10 分钟
 
 // ---- 轮询间隔（毫秒） ----
 
-export const POLL_INTERVAL_MS = 2000;
+export const POLL_INTERVAL_MS = 1000;
 
 // ---- 创建空规约模板 ----
 
