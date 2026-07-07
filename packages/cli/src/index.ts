@@ -13,6 +13,7 @@ import { createAwaitConfirmCommand } from './commands/await-confirm.js';
 import { createServeCommand } from './commands/__serve.js';
 import { createDetectCommand } from './commands/detect.js';
 import { createQuickCommand } from './commands/quick.js';
+import { createSetupCommand } from './commands/setup.js';
 
 const KNOWN_COMMANDS = [
   'submit',
@@ -28,6 +29,7 @@ const KNOWN_COMMANDS = [
   '__serve',
   'detect',
   'quick',
+  'setup',
   '--help',
   '-h',
   '--version',
@@ -86,6 +88,7 @@ program.addCommand(createAwaitConfirmCommand());
 program.addCommand(createConfigCommand());
 program.addCommand(createDetectCommand());
 program.addCommand(createQuickCommand());
+program.addCommand(createSetupCommand());
 program.addCommand(createServeCommand(), { hidden: true });
 
 tryQuickSugar();

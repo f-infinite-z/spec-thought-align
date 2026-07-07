@@ -7,16 +7,38 @@ export const openaiCodexAdapter = new (class extends BaseAdapter {
 
   integration = {
     configFilePath: '.codex/config.md',
-    configTemplate: `在编写代码前，必须调用 detect：
+    configTemplate: `## Spec-Align 需求确认流程
+
+在编写代码前，必须按以下步骤执行：
+
+### 步骤 0：触发检测
+\`\`\`bash
+spec-thought-align detect --platform openai-codex --files <预估修改文件数> --request "<用户原始需求>" [--new-feature] [--bug-fix] [--has-detailed-context] [--architecture-change] [--has-ambiguity] [--complexity low|medium|high]
+\`\`\`
+- mode: "require" → 必须走流程
+- mode: "suggest" → 询问用户
+- mode: "skip" → 跳过
+
+### 步骤 1：提交分析
+分析需求时，逐条回答两个问题：
+1. 不确定检查：我是不是有不确定的地方，在猜测用户的意思？（标出并以"不确定："开头）
+2. 影响范围评估：会不会产生结构性变化，影响的范围有哪些？（列出受影响的文件/模块）
 
 \`\`\`bash
-spec-thought-align detect --platform openai-codex --files <count>
+spec-thought-align submit --id "<任务名>" --request "<用户原始需求>" --analysis "<你的完整分析>" --no-wait
 \`\`\`
 
-如果 mode 为 require，使用 --no-wait 模式：
+### 步骤 2：等待确认
 \`\`\`bash
-spec-thought-align submit --id "<任务名>" --request "<用户需求>" --analysis "<分析>" --no-wait --agent-type generic
-spec-thought-align await-confirm --id "<任务名>"
+spec-thought-align await-confirm --id "<任务名>" --timeout 600
+\`\`\`
+
+### 步骤 3：按规约施工
+返回的 JSON 是最终规约，严格按它施工。面板中的 questions 以用户澄清后的回答为准。
+
+### 步骤 4：标记完成
+\`\`\`bash
+spec-thought-align complete --id "<任务名>" --summary "<做了什么>"
 \`\`\``,
     detectEnvVars: ['OPENAI_API_KEY'],
     recommendedStrategy: 'no-wait',

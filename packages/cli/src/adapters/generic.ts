@@ -6,16 +6,39 @@ export const genericAdapter = new (class extends BaseAdapter {
   displayName = 'Unknown Agent';
 
   integration = {
-    configFilePath: 'AGENTS.md 或自定义配置',
-    configTemplate: `在编写代码前，调用 detect 判断是否需要需求确认：
+    configFilePath: 'AGENTS.md',
+    configTemplate: `## Spec-Align 需求确认流程
+
+在编写代码前，必须按以下步骤执行：
+
+### 步骤 0：触发检测
+\`\`\`bash
+spec-thought-align detect --files <预估修改文件数> --request "<用户原始需求>" [--new-feature] [--bug-fix] [--has-detailed-context] [--architecture-change] [--has-ambiguity] [--complexity low|medium|high]
+\`\`\`
+- mode: "require" → 必须走流程
+- mode: "suggest" → 询问用户
+- mode: "skip" → 跳过
+
+### 步骤 1：提交分析
+分析需求时，逐条回答两个问题：
+1. 不确定检查：我是不是有不确定的地方，在猜测用户的意思？（标出并以"不确定："开头）
+2. 影响范围评估：会不会产生结构性变化，影响的范围有哪些？（列出受影响的文件/模块）
 
 \`\`\`bash
-spec-thought-align detect --files <count> [--new-feature] [--architecture-change]
+spec-thought-align submit --id "<任务名>" --request "<用户原始需求>" --analysis "<你的完整分析>" --no-wait
 \`\`\`
 
-如果 shouldTrigger 为 true，执行 spec-align 流程：
+### 步骤 2：等待确认
 \`\`\`bash
-spec-thought-align submit --id "<任务名>" --request "<用户需求>" --analysis "<分析>" --no-wait
+spec-thought-align await-confirm --id "<任务名>" --timeout 600
+\`\`\`
+
+### 步骤 3：按规约施工
+返回的 JSON 是最终规约，严格按它施工。
+
+### 步骤 4：标记完成
+\`\`\`bash
+spec-thought-align complete --id "<任务名>" --summary "<做了什么>"
 \`\`\``,
     detectEnvVars: [],
     recommendedStrategy: 'no-wait',

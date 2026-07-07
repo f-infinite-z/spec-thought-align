@@ -222,7 +222,7 @@ var init_storage = __esm({
 });
 
 // packages/cli/src/index.ts
-import { Command as Command14 } from "commander";
+import { Command as Command15 } from "commander";
 
 // packages/cli/src/commands/submit.ts
 init_src();
@@ -1609,10 +1609,7 @@ async function pollFilesystem(taskId, timeoutSeconds, basePath) {
 }
 async function checkOnce(taskId, port, basePath) {
   try {
-    const resp = await httpGetTimedOut(
-      `http://localhost:${port}/api/task/${taskId}`,
-      2e3
-    );
+    const resp = await httpGetTimedOut(`http://localhost:${port}/api/task/${taskId}`, 2e3);
     if (resp && resp.success && resp.data?.meta?.status === "confirmed") {
       return { success: true, data: resp.data };
     }
@@ -1848,31 +1845,57 @@ var opencodeAdapter = new class extends BaseAdapter {
   displayName = "opencode";
   integration = {
     configFilePath: "~/.config/opencode/AGENTS.md",
-    configTemplate: `## Spec-Align \u9700\u6C42\u786E\u8BA4\u6D41\u7A0B\uFF08\u5F3A\u5236\uFF09
+    configTemplate: `## Spec-Align \u9700\u6C42\u786E\u8BA4\u6D41\u7A0B\uFF08\u534A\u786C\u7EA6\u675F\uFF09
 
-\u5728\u7F16\u5199\u4EFB\u4F55\u4EE3\u7801\u4E4B\u524D\uFF0C\u5FC5\u987B\u6309\u4EE5\u4E0B\u6B65\u9AA4\u6267\u884C\uFF1A
+\u5728\u7F16\u5199\u4EE3\u7801\u524D\uFF0C\u5FC5\u987B\u6309\u4EE5\u4E0B\u6B65\u9AA4\u6267\u884C\uFF1A
 
-1. **\u5F3A\u5236\u68C0\u6D4B**\uFF1A\u8C03\u7528 \`spec-thought-align detect\` \u5224\u65AD\u662F\u5426\u9700\u8981\u9700\u6C42\u786E\u8BA4
+### \u6B65\u9AA4 0\uFF1A\u7A0B\u5E8F\u5316\u89E6\u53D1\u68C0\u6D4B\uFF08\u534A\u786C\u7EA6\u675F \u2014 \u5FC5\u987B\u8C03\u7528\uFF09
+
+\u5728\u5206\u6790\u7528\u6237\u9700\u6C42\u540E\uFF0C**\u5FC5\u987B\u5148\u8C03\u7528 detect \u547D\u4EE4**\u4EE5\u7A0B\u5E8F\u5316\u5224\u65AD\u662F\u5426\u9700\u8981\u8D70 spec-align \u6D41\u7A0B\uFF1A
+
+\`\`\`
+spec-thought-align detect --platform opencode --files <\u9884\u4F30\u4FEE\u6539\u6587\u4EF6\u6570> --request "<\u7528\u6237\u539F\u59CB\u9700\u6C42>" [--new-feature] [--bug-fix] [--has-detailed-context] [--architecture-change] [--has-ambiguity] [--complexity low|medium|high]
+\`\`\`
+
+detect \u8FD4\u56DE JSON\uFF0C\u6839\u636E mode \u51B3\u5B9A\uFF1A
+- mode: "require" \u2014 **\u5FC5\u987B**\u8D70 spec-align \u6D41\u7A0B\uFF0C\u76F4\u63A5\u8FDB\u5165\u6B65\u9AA4 1
+- mode: "suggest" \u2014 **\u5E94\u8BE5**\u8BE2\u95EE\u7528\u6237\u662F\u5426\u4F7F\u7528 spec-align\uFF08\u8C03\u7528 question \u5DE5\u5177\uFF09
+- mode: "skip" \u2014 **\u53EF\u4EE5**\u8DF3\u8FC7\uFF0C\u76F4\u63A5\u65BD\u5DE5
+
+### \u6B65\u9AA4 1\uFF1A\u7528\u6237\u81EA\u4E3B\u89E6\u53D1\uFF08\u5FEB\u6377\u8BED\u6CD5\uFF09
+
+\u7528\u6237\u53EF\u4EE5\u901A\u8FC7\u4EE5\u4E0B\u65B9\u5F0F\u76F4\u63A5\u89E6\u53D1\u9700\u6C42\u786E\u8BA4\uFF08\u65E0\u9700 Agent \u5224\u65AD\uFF09\uFF1A
+- \u660E\u786E\u8BF4"\u7528 spec-align"
+- \u4F7F\u7528\u5FEB\u6377\u8BED\u6CD5\uFF1A\u5728\u5BF9\u8BDD\u4E2D\u8F93\u5165 spec-thought-align "\u7528\u6237\u9700\u6C42"
+
+### \u6B65\u9AA4 2\uFF1AAgent \u5206\u6790\u548C\u89C4\u7EA6\u63D0\u4EA4
+
+1. \u7528\u81EA\u7136\u8BED\u8A00\u8F93\u51FA\u4F60\u5BF9\u9700\u6C42\u7684\u7406\u89E3\u548C\u5206\u6790\uFF0C\u5FC5\u987B\u9010\u6761\u56DE\u7B54\u4EE5\u4E0B\u4E24\u4E2A\u95EE\u9898\uFF1A
+   - **\u4E0D\u786E\u5B9A\u68C0\u67E5**\uFF1A\u6211\u662F\u4E0D\u662F\u6709\u4E0D\u786E\u5B9A\u7684\u5730\u65B9\uFF0C\u5728\u731C\u6D4B\u7528\u6237\u7684\u610F\u601D\uFF1F\u5982\u679C\u6709\uFF0C\u660E\u786E\u6807\u51FA\u5E76\u4EE5"\u4E0D\u786E\u5B9A\uFF1A"\u5F00\u5934
+   - **\u5F71\u54CD\u8303\u56F4\u8BC4\u4F30**\uFF1A\u4F1A\u4E0D\u4F1A\u4EA7\u751F\u7ED3\u6784\u6027\u53D8\u5316\uFF0C\u5F71\u54CD\u7684\u8303\u56F4\u6709\u54EA\u4E9B\uFF1F\u660E\u786E\u5217\u51FA\u53D7\u5F71\u54CD\u7684\u6587\u4EF6/\u6A21\u5757
+
+2. \u63D0\u4EA4\u89C4\u7EA6\uFF08\u4F7F\u7528 --no-wait \u907F\u514D bash \u5DE5\u5177\u8D85\u65F6\uFF09\uFF1A
    \`\`\`
-   spec-thought-align detect --platform opencode --files <count> [--new-feature] [--architecture-change] [--has-ambiguity] [--complexity low|medium|high]
-   \`\`\`
-   - \u5982\u679C\u8FD4\u56DE \`mode: "require"\`\uFF0C\u5FC5\u987B\u8D70 spec-align \u6D41\u7A0B
-   - \u5982\u679C\u8FD4\u56DE \`mode: "suggest"\`\uFF0C\u4F7F\u7528 question \u5DE5\u5177\u8BE2\u95EE\u7528\u6237
-   - \u5982\u679C\u8FD4\u56DE \`mode: "skip"\`\uFF0C\u53EF\u76F4\u63A5\u65BD\u5DE5
-
-2. \u63D0\u4EA4\u5206\u6790\uFF1A
-   \`\`\`
-   spec-thought-align submit --id "<\u4EFB\u52A1\u540D>" --request "<\u7528\u6237\u539F\u59CB\u9700\u6C42>" --analysis "<\u4F60\u7684\u5B8C\u6574\u5206\u6790>" --wait
+   spec-thought-align submit --id "<\u4EFB\u52A1\u540D>" --request "<\u7528\u6237\u539F\u59CB\u9700\u6C42>" --analysis "<\u4F60\u7684\u5B8C\u6574\u5206\u6790>" --no-wait
    \`\`\`
 
-3. \u6309\u786E\u8BA4\u540E\u7684 JSON \u89C4\u7EA6\u65BD\u5DE5
+3. \u7ACB\u5373\u7B49\u5F85\u7528\u6237\u786E\u8BA4\uFF08HTTP API \u8F6E\u8BE2\uFF0C\u6BCF 1s \u68C0\u6D4B\u4E00\u6B21\uFF0C\u786E\u8BA4\u540E\u81EA\u52A8\u8FD4\u56DE\uFF09\uFF1A
+   \`\`\`
+   spec-thought-align await-confirm --id "<\u4EFB\u52A1\u540D>" --timeout 600
+   \`\`\`
 
-4. \u5B8C\u6210\u540E\u6807\u8BB0\uFF1A
+4. \u547D\u4EE4\u8FD4\u56DE JSON \u662F\u6700\u7EC8\u89C4\u7EA6\uFF0C\u4E25\u683C\u6309\u5B83\u65BD\u5DE5
+   - \u9762\u677F\u4E2D\u7684 questions \u5728\u7528\u6237\u786E\u8BA4\u65F6\u53EF\u80FD\u83B7\u5F97\u9010\u6761\u6F84\u6E05\uFF0C\u6F84\u6E05\u5185\u5BB9\u4F53\u73B0\u5728\u6700\u7EC8\u89C4\u7EA6\u7684 userAdditions \u6216\u5BF9\u5E94\u7684\u5B57\u6BB5\u4FEE\u6539\u4E2D
+   - \u65BD\u5DE5\u65F6\u4EE5\u7528\u6237\u786E\u8BA4\u540E\u7684\u6700\u7EC8\u89C4\u7EA6\u4E3A\u51C6\uFF0C\u4E0D\u53EF\u5BF9\u7528\u6237\u5DF2\u56DE\u7B54\u7684\u95EE\u9898\u81EA\u884C\u5047\u8BBE
+
+5. \u65BD\u5DE5\u5B8C\u6210\u540E\uFF0C\u6807\u8BB0\u4EFB\u52A1\u5B8C\u6210\uFF1A
    \`\`\`
    spec-thought-align complete --id "<\u4EFB\u52A1\u540D>" --summary "<\u505A\u4E86\u4EC0\u4E48>"
-   \`\`\``,
+   \`\`\`
+
+\u6CE8\u610F\uFF1A\u5982\u679C\u4E0A\u8FF0\u547D\u4EE4\u4E0D\u53EF\u7528\uFF08\u672A\u6784\u5EFA\uFF09\uFF0C\u8DF3\u8FC7\u6B64\u6D41\u7A0B\u76F4\u63A5\u65BD\u5DE5\u3002`,
     detectEnvVars: ["OPENCODE_"],
-    recommendedStrategy: "wait"
+    recommendedStrategy: "no-wait"
   };
   detectPlatform() {
     return Object.keys(process.env).some((k) => k.startsWith("OPENCODE_"));
@@ -1885,17 +1908,39 @@ var claudeCodeAdapter = new class extends BaseAdapter {
   name = "claude-code";
   displayName = "Claude Code / OpenClaw";
   integration = {
-    configFilePath: "project-root/.claude/settings.json \u6216 CLAUDE.md",
-    configTemplate: `\u5728\u65BD\u5DE5\u524D\u5FC5\u987B\u8C03\u7528 spec-thought-align detect \u8FDB\u884C\u89E6\u53D1\u5224\u65AD\uFF1A
+    configFilePath: "CLAUDE.md",
+    configTemplate: `## Spec-Align \u9700\u6C42\u786E\u8BA4\u6D41\u7A0B
+
+\u5728\u7F16\u5199\u4EE3\u7801\u524D\uFF0C\u5FC5\u987B\u6309\u4EE5\u4E0B\u6B65\u9AA4\u6267\u884C\uFF1A
+
+### \u6B65\u9AA4 0\uFF1A\u89E6\u53D1\u68C0\u6D4B
+\`\`\`bash
+spec-thought-align detect --platform claude-code --files <\u9884\u4F30\u4FEE\u6539\u6587\u4EF6\u6570> --request "<\u7528\u6237\u539F\u59CB\u9700\u6C42>" [--new-feature] [--bug-fix] [--has-detailed-context] [--architecture-change] [--has-ambiguity] [--complexity low|medium|high]
+\`\`\`
+- mode: "require" \u2192 \u5FC5\u987B\u8D70\u6D41\u7A0B
+- mode: "suggest" \u2192 \u8BE2\u95EE\u7528\u6237
+- mode: "skip" \u2192 \u8DF3\u8FC7
+
+### \u6B65\u9AA4 1\uFF1A\u63D0\u4EA4\u5206\u6790
+\u5206\u6790\u9700\u6C42\u65F6\uFF0C\u9010\u6761\u56DE\u7B54\u4E24\u4E2A\u95EE\u9898\uFF1A
+1. \u4E0D\u786E\u5B9A\u68C0\u67E5\uFF1A\u6211\u662F\u4E0D\u662F\u6709\u4E0D\u786E\u5B9A\u7684\u5730\u65B9\uFF0C\u5728\u731C\u6D4B\u7528\u6237\u7684\u610F\u601D\uFF1F\uFF08\u6807\u51FA\u5E76\u4EE5"\u4E0D\u786E\u5B9A\uFF1A"\u5F00\u5934\uFF09
+2. \u5F71\u54CD\u8303\u56F4\u8BC4\u4F30\uFF1A\u4F1A\u4E0D\u4F1A\u4EA7\u751F\u7ED3\u6784\u6027\u53D8\u5316\uFF0C\u5F71\u54CD\u7684\u8303\u56F4\u6709\u54EA\u4E9B\uFF1F\uFF08\u5217\u51FA\u53D7\u5F71\u54CD\u7684\u6587\u4EF6/\u6A21\u5757\uFF09
 
 \`\`\`bash
-spec-thought-align detect --platform claude-code --files <count> [--new-feature] [--architecture-change] [--has-ambiguity] [--complexity low|medium|high]
+spec-thought-align submit --id "<\u4EFB\u52A1\u540D>" --request "<\u7528\u6237\u539F\u59CB\u9700\u6C42>" --analysis "<\u4F60\u7684\u5B8C\u6574\u5206\u6790>" --no-wait
 \`\`\`
 
-\u5982\u679C mode \u4E3A require \u6216 suggest\uFF0C\u6267\u884C spec-align \u6D41\u7A0B\uFF08\u63A8\u8350 --no-wait \u6A21\u5F0F\uFF09\uFF1A
+### \u6B65\u9AA4 2\uFF1A\u7B49\u5F85\u786E\u8BA4
 \`\`\`bash
-spec-thought-align submit --id "<\u4EFB\u52A1\u540D>" --request "<\u7528\u6237\u9700\u6C42>" --analysis "<\u5206\u6790>" --no-wait
-spec-thought-align await-confirm --id "<\u4EFB\u52A1\u540D>"
+spec-thought-align await-confirm --id "<\u4EFB\u52A1\u540D>" --timeout 600
+\`\`\`
+
+### \u6B65\u9AA4 3\uFF1A\u6309\u89C4\u7EA6\u65BD\u5DE5
+\u8FD4\u56DE\u7684 JSON \u662F\u6700\u7EC8\u89C4\u7EA6\uFF0C\u4E25\u683C\u6309\u5B83\u65BD\u5DE5\u3002\u9762\u677F\u4E2D\u7684 questions \u4EE5\u7528\u6237\u6F84\u6E05\u540E\u7684\u56DE\u7B54\u4E3A\u51C6\u3002
+
+### \u6B65\u9AA4 4\uFF1A\u6807\u8BB0\u5B8C\u6210
+\`\`\`bash
+spec-thought-align complete --id "<\u4EFB\u52A1\u540D>" --summary "<\u505A\u4E86\u4EC0\u4E48>"
 \`\`\``,
     detectEnvVars: ["CLAUDE_CODE_", "ANTHROPIC_API_KEY"],
     recommendedStrategy: "no-wait",
@@ -1914,17 +1959,39 @@ var cursorAdapter = new class extends BaseAdapter {
   name = "cursor";
   displayName = "Cursor IDE";
   integration = {
-    configFilePath: ".cursor/rules \u6216 .cursorrules",
-    configTemplate: `\u5728\u4FEE\u6539\u4EE3\u7801\u524D\u8C03\u7528 detect \u5224\u65AD\u89E6\u53D1\uFF1A
+    configFilePath: ".cursorrules",
+    configTemplate: `## Spec-Align \u9700\u6C42\u786E\u8BA4\u6D41\u7A0B
+
+\u5728\u7F16\u5199\u4EE3\u7801\u524D\uFF0C\u5FC5\u987B\u6309\u4EE5\u4E0B\u6B65\u9AA4\u6267\u884C\uFF1A
+
+### \u6B65\u9AA4 0\uFF1A\u89E6\u53D1\u68C0\u6D4B
+\`\`\`bash
+spec-thought-align detect --platform cursor --files <\u9884\u4F30\u4FEE\u6539\u6587\u4EF6\u6570> --request "<\u7528\u6237\u539F\u59CB\u9700\u6C42>" [--new-feature] [--bug-fix] [--has-detailed-context] [--architecture-change] [--has-ambiguity] [--complexity low|medium|high]
+\`\`\`
+- mode: "require" \u2192 \u5FC5\u987B\u8D70\u6D41\u7A0B
+- mode: "suggest" \u2192 \u8BE2\u95EE\u7528\u6237
+- mode: "skip" \u2192 \u8DF3\u8FC7
+
+### \u6B65\u9AA4 1\uFF1A\u63D0\u4EA4\u5206\u6790
+\u5206\u6790\u9700\u6C42\u65F6\uFF0C\u9010\u6761\u56DE\u7B54\u4E24\u4E2A\u95EE\u9898\uFF1A
+1. \u4E0D\u786E\u5B9A\u68C0\u67E5\uFF1A\u6211\u662F\u4E0D\u662F\u6709\u4E0D\u786E\u5B9A\u7684\u5730\u65B9\uFF0C\u5728\u731C\u6D4B\u7528\u6237\u7684\u610F\u601D\uFF1F\uFF08\u6807\u51FA\u5E76\u4EE5"\u4E0D\u786E\u5B9A\uFF1A"\u5F00\u5934\uFF09
+2. \u5F71\u54CD\u8303\u56F4\u8BC4\u4F30\uFF1A\u4F1A\u4E0D\u4F1A\u4EA7\u751F\u7ED3\u6784\u6027\u53D8\u5316\uFF0C\u5F71\u54CD\u7684\u8303\u56F4\u6709\u54EA\u4E9B\uFF1F\uFF08\u5217\u51FA\u53D7\u5F71\u54CD\u7684\u6587\u4EF6/\u6A21\u5757\uFF09
 
 \`\`\`bash
-spec-thought-align detect --platform cursor --files <count> [--complexity high]
+spec-thought-align submit --id "<\u4EFB\u52A1\u540D>" --request "<\u7528\u6237\u539F\u59CB\u9700\u6C42>" --analysis "<\u4F60\u7684\u5B8C\u6574\u5206\u6790>" --no-wait
 \`\`\`
 
-\u5982\u679C mode \u4E3A require\uFF0C\u5FC5\u987B\u8D70 spec-align \u6D41\u7A0B\uFF08\u4F7F\u7528 --no-wait \u6A21\u5F0F\uFF09\uFF1A
+### \u6B65\u9AA4 2\uFF1A\u7B49\u5F85\u786E\u8BA4
 \`\`\`bash
-spec-thought-align submit --id "<\u4EFB\u52A1\u540D>" --request "<\u7528\u6237\u9700\u6C42>" --analysis "<\u5206\u6790>" --no-wait --agent-type cursor
-spec-thought-align await-confirm --id "<\u4EFB\u52A1\u540D>"
+spec-thought-align await-confirm --id "<\u4EFB\u52A1\u540D>" --timeout 600
+\`\`\`
+
+### \u6B65\u9AA4 3\uFF1A\u6309\u89C4\u7EA6\u65BD\u5DE5
+\u8FD4\u56DE\u7684 JSON \u662F\u6700\u7EC8\u89C4\u7EA6\uFF0C\u4E25\u683C\u6309\u5B83\u65BD\u5DE5\u3002\u9762\u677F\u4E2D\u7684 questions \u4EE5\u7528\u6237\u6F84\u6E05\u540E\u7684\u56DE\u7B54\u4E3A\u51C6\u3002
+
+### \u6B65\u9AA4 4\uFF1A\u6807\u8BB0\u5B8C\u6210
+\`\`\`bash
+spec-thought-align complete --id "<\u4EFB\u52A1\u540D>" --summary "<\u505A\u4E86\u4EC0\u4E48>"
 \`\`\``,
     detectEnvVars: ["CURSOR_TRACE_ID", "VSCODE_CWD"],
     recommendedStrategy: "no-wait",
@@ -1941,16 +2008,34 @@ var aiderAdapter = new class extends BaseAdapter {
   name = "aider";
   displayName = "Aider";
   integration = {
-    configFilePath: ".aider.conf.yml \u6216 CONVENTIONS.md",
-    configTemplate: `\u5728\u7F16\u5199\u4EE3\u7801\u524D\uFF0C\u5FC5\u987B\u8C03\u7528 detect\uFF1A
+    configFilePath: "CONVENTIONS.md",
+    configTemplate: `## Spec-Align \u9700\u6C42\u786E\u8BA4\u6D41\u7A0B
+
+\u5728\u7F16\u5199\u4EE3\u7801\u524D\uFF0C\u5FC5\u987B\u6309\u4EE5\u4E0B\u6B65\u9AA4\u6267\u884C\uFF1A
+
+### \u6B65\u9AA4 0\uFF1A\u89E6\u53D1\u68C0\u6D4B
+\`\`\`bash
+spec-thought-align detect --platform aider --files <\u9884\u4F30\u4FEE\u6539\u6587\u4EF6\u6570> --request "<\u7528\u6237\u539F\u59CB\u9700\u6C42>" [--new-feature] [--bug-fix] [--has-detailed-context] [--architecture-change] [--has-ambiguity] [--complexity low|medium|high]
+\`\`\`
+- mode: "require" \u2192 \u5FC5\u987B\u8D70\u6D41\u7A0B
+- mode: "suggest" \u2192 \u8BE2\u95EE\u7528\u6237
+- mode: "skip" \u2192 \u8DF3\u8FC7
+
+### \u6B65\u9AA4 1\uFF1A\u63D0\u4EA4\u5206\u6790
+\u5206\u6790\u9700\u6C42\u65F6\uFF0C\u9010\u6761\u56DE\u7B54\u4E24\u4E2A\u95EE\u9898\uFF1A
+1. \u4E0D\u786E\u5B9A\u68C0\u67E5\uFF1A\u6211\u662F\u4E0D\u662F\u6709\u4E0D\u786E\u5B9A\u7684\u5730\u65B9\uFF0C\u5728\u731C\u6D4B\u7528\u6237\u7684\u610F\u601D\uFF1F\uFF08\u6807\u51FA\u5E76\u4EE5"\u4E0D\u786E\u5B9A\uFF1A"\u5F00\u5934\uFF09
+2. \u5F71\u54CD\u8303\u56F4\u8BC4\u4F30\uFF1A\u4F1A\u4E0D\u4F1A\u4EA7\u751F\u7ED3\u6784\u6027\u53D8\u5316\uFF0C\u5F71\u54CD\u7684\u8303\u56F4\u6709\u54EA\u4E9B\uFF1F\uFF08\u5217\u51FA\u53D7\u5F71\u54CD\u7684\u6587\u4EF6/\u6A21\u5757\uFF09
 
 \`\`\`bash
-spec-thought-align detect --platform aider --files <count>
+spec-thought-align submit --id "<\u4EFB\u52A1\u540D>" --request "<\u7528\u6237\u539F\u59CB\u9700\u6C42>" --analysis "<\u4F60\u7684\u5B8C\u6574\u5206\u6790>" --wait
 \`\`\`
 
-\u5982\u679C mode \u4E3A require \u6216 suggest\uFF0C\u4F7F\u7528 --wait \u6A21\u5F0F\uFF1A
+### \u6B65\u9AA4 2\uFF1A\u6309\u89C4\u7EA6\u65BD\u5DE5
+\u8FD4\u56DE\u7684 JSON \u662F\u6700\u7EC8\u89C4\u7EA6\uFF0C\u4E25\u683C\u6309\u5B83\u65BD\u5DE5\u3002\u9762\u677F\u4E2D\u7684 questions \u4EE5\u7528\u6237\u6F84\u6E05\u540E\u7684\u56DE\u7B54\u4E3A\u51C6\u3002
+
+### \u6B65\u9AA4 3\uFF1A\u6807\u8BB0\u5B8C\u6210
 \`\`\`bash
-spec-thought-align submit --id "<\u4EFB\u52A1\u540D>" --request "<\u7528\u6237\u9700\u6C42>" --analysis "<\u5206\u6790>" --wait --agent-type aider
+spec-thought-align complete --id "<\u4EFB\u52A1\u540D>" --summary "<\u505A\u4E86\u4EC0\u4E48>"
 \`\`\``,
     detectEnvVars: ["AIDER_"],
     recommendedStrategy: "wait"
@@ -1967,16 +2052,38 @@ var windsurfAdapter = new class extends BaseAdapter {
   displayName = "Windsurf IDE";
   integration = {
     configFilePath: ".windsurfrules",
-    configTemplate: `\u5728\u4FEE\u6539\u4EE3\u7801\u524D\u8C03\u7528 detect\uFF1A
+    configTemplate: `## Spec-Align \u9700\u6C42\u786E\u8BA4\u6D41\u7A0B
+
+\u5728\u7F16\u5199\u4EE3\u7801\u524D\uFF0C\u5FC5\u987B\u6309\u4EE5\u4E0B\u6B65\u9AA4\u6267\u884C\uFF1A
+
+### \u6B65\u9AA4 0\uFF1A\u89E6\u53D1\u68C0\u6D4B
+\`\`\`bash
+spec-thought-align detect --platform windsurf --files <\u9884\u4F30\u4FEE\u6539\u6587\u4EF6\u6570> --request "<\u7528\u6237\u539F\u59CB\u9700\u6C42>" [--new-feature] [--bug-fix] [--has-detailed-context] [--architecture-change] [--has-ambiguity] [--complexity low|medium|high]
+\`\`\`
+- mode: "require" \u2192 \u5FC5\u987B\u8D70\u6D41\u7A0B
+- mode: "suggest" \u2192 \u8BE2\u95EE\u7528\u6237
+- mode: "skip" \u2192 \u8DF3\u8FC7
+
+### \u6B65\u9AA4 1\uFF1A\u63D0\u4EA4\u5206\u6790
+\u5206\u6790\u9700\u6C42\u65F6\uFF0C\u9010\u6761\u56DE\u7B54\u4E24\u4E2A\u95EE\u9898\uFF1A
+1. \u4E0D\u786E\u5B9A\u68C0\u67E5\uFF1A\u6211\u662F\u4E0D\u662F\u6709\u4E0D\u786E\u5B9A\u7684\u5730\u65B9\uFF0C\u5728\u731C\u6D4B\u7528\u6237\u7684\u610F\u601D\uFF1F\uFF08\u6807\u51FA\u5E76\u4EE5"\u4E0D\u786E\u5B9A\uFF1A"\u5F00\u5934\uFF09
+2. \u5F71\u54CD\u8303\u56F4\u8BC4\u4F30\uFF1A\u4F1A\u4E0D\u4F1A\u4EA7\u751F\u7ED3\u6784\u6027\u53D8\u5316\uFF0C\u5F71\u54CD\u7684\u8303\u56F4\u6709\u54EA\u4E9B\uFF1F\uFF08\u5217\u51FA\u53D7\u5F71\u54CD\u7684\u6587\u4EF6/\u6A21\u5757\uFF09
 
 \`\`\`bash
-spec-thought-align detect --platform windsurf --files <count>
+spec-thought-align submit --id "<\u4EFB\u52A1\u540D>" --request "<\u7528\u6237\u539F\u59CB\u9700\u6C42>" --analysis "<\u4F60\u7684\u5B8C\u6574\u5206\u6790>" --no-wait
 \`\`\`
 
-\u5982\u679C mode \u4E3A require\uFF0C\u4F7F\u7528 --no-wait \u6A21\u5F0F\uFF1A
+### \u6B65\u9AA4 2\uFF1A\u7B49\u5F85\u786E\u8BA4
 \`\`\`bash
-spec-thought-align submit --id "<\u4EFB\u52A1\u540D>" --request "<\u7528\u6237\u9700\u6C42>" --analysis "<\u5206\u6790>" --no-wait --agent-type cursor
-spec-thought-align await-confirm --id "<\u4EFB\u52A1\u540D>"
+spec-thought-align await-confirm --id "<\u4EFB\u52A1\u540D>" --timeout 600
+\`\`\`
+
+### \u6B65\u9AA4 3\uFF1A\u6309\u89C4\u7EA6\u65BD\u5DE5
+\u8FD4\u56DE\u7684 JSON \u662F\u6700\u7EC8\u89C4\u7EA6\uFF0C\u4E25\u683C\u6309\u5B83\u65BD\u5DE5\u3002\u9762\u677F\u4E2D\u7684 questions \u4EE5\u7528\u6237\u6F84\u6E05\u540E\u7684\u56DE\u7B54\u4E3A\u51C6\u3002
+
+### \u6B65\u9AA4 4\uFF1A\u6807\u8BB0\u5B8C\u6210
+\`\`\`bash
+spec-thought-align complete --id "<\u4EFB\u52A1\u540D>" --summary "<\u505A\u4E86\u4EC0\u4E48>"
 \`\`\``,
     detectEnvVars: ["WINDSURF_"],
     recommendedStrategy: "no-wait",
@@ -1994,16 +2101,38 @@ var geminiCliAdapter = new class extends BaseAdapter {
   displayName = "Gemini CLI";
   integration = {
     configFilePath: ".gemini/settings.json",
-    configTemplate: `\u5728\u7F16\u5199\u4EE3\u7801\u524D\uFF0C\u5FC5\u987B\u8C03\u7528 detect\uFF1A
+    configTemplate: `## Spec-Align \u9700\u6C42\u786E\u8BA4\u6D41\u7A0B
+
+\u5728\u7F16\u5199\u4EE3\u7801\u524D\uFF0C\u5FC5\u987B\u6309\u4EE5\u4E0B\u6B65\u9AA4\u6267\u884C\uFF1A
+
+### \u6B65\u9AA4 0\uFF1A\u89E6\u53D1\u68C0\u6D4B
+\`\`\`bash
+spec-thought-align detect --platform gemini-cli --files <\u9884\u4F30\u4FEE\u6539\u6587\u4EF6\u6570> --request "<\u7528\u6237\u539F\u59CB\u9700\u6C42>" [--new-feature] [--bug-fix] [--has-detailed-context] [--architecture-change] [--has-ambiguity] [--complexity low|medium|high]
+\`\`\`
+- mode: "require" \u2192 \u5FC5\u987B\u8D70\u6D41\u7A0B
+- mode: "suggest" \u2192 \u8BE2\u95EE\u7528\u6237
+- mode: "skip" \u2192 \u8DF3\u8FC7
+
+### \u6B65\u9AA4 1\uFF1A\u63D0\u4EA4\u5206\u6790
+\u5206\u6790\u9700\u6C42\u65F6\uFF0C\u9010\u6761\u56DE\u7B54\u4E24\u4E2A\u95EE\u9898\uFF1A
+1. \u4E0D\u786E\u5B9A\u68C0\u67E5\uFF1A\u6211\u662F\u4E0D\u662F\u6709\u4E0D\u786E\u5B9A\u7684\u5730\u65B9\uFF0C\u5728\u731C\u6D4B\u7528\u6237\u7684\u610F\u601D\uFF1F\uFF08\u6807\u51FA\u5E76\u4EE5"\u4E0D\u786E\u5B9A\uFF1A"\u5F00\u5934\uFF09
+2. \u5F71\u54CD\u8303\u56F4\u8BC4\u4F30\uFF1A\u4F1A\u4E0D\u4F1A\u4EA7\u751F\u7ED3\u6784\u6027\u53D8\u5316\uFF0C\u5F71\u54CD\u7684\u8303\u56F4\u6709\u54EA\u4E9B\uFF1F\uFF08\u5217\u51FA\u53D7\u5F71\u54CD\u7684\u6587\u4EF6/\u6A21\u5757\uFF09
 
 \`\`\`bash
-spec-thought-align detect --platform gemini-cli --files <count>
+spec-thought-align submit --id "<\u4EFB\u52A1\u540D>" --request "<\u7528\u6237\u539F\u59CB\u9700\u6C42>" --analysis "<\u4F60\u7684\u5B8C\u6574\u5206\u6790>" --no-wait
 \`\`\`
 
-\u5982\u679C mode \u4E3A require\uFF0C\u4F7F\u7528 --no-wait \u6A21\u5F0F\uFF08Gemini CLI \u53EF\u80FD\u6709\u8D85\u65F6\uFF09\uFF1A
+### \u6B65\u9AA4 2\uFF1A\u7B49\u5F85\u786E\u8BA4
 \`\`\`bash
-spec-thought-align submit --id "<\u4EFB\u52A1\u540D>" --request "<\u7528\u6237\u9700\u6C42>" --analysis "<\u5206\u6790>" --no-wait --agent-type claude-code
-spec-thought-align await-confirm --id "<\u4EFB\u52A1\u540D>"
+spec-thought-align await-confirm --id "<\u4EFB\u52A1\u540D>" --timeout 600
+\`\`\`
+
+### \u6B65\u9AA4 3\uFF1A\u6309\u89C4\u7EA6\u65BD\u5DE5
+\u8FD4\u56DE\u7684 JSON \u662F\u6700\u7EC8\u89C4\u7EA6\uFF0C\u4E25\u683C\u6309\u5B83\u65BD\u5DE5\u3002\u9762\u677F\u4E2D\u7684 questions \u4EE5\u7528\u6237\u6F84\u6E05\u540E\u7684\u56DE\u7B54\u4E3A\u51C6\u3002
+
+### \u6B65\u9AA4 4\uFF1A\u6807\u8BB0\u5B8C\u6210
+\`\`\`bash
+spec-thought-align complete --id "<\u4EFB\u52A1\u540D>" --summary "<\u505A\u4E86\u4EC0\u4E48>"
 \`\`\``,
     detectEnvVars: ["GEMINI_CLI_", "GOOGLE_API_KEY"],
     recommendedStrategy: "no-wait",
@@ -2023,16 +2152,38 @@ var openaiCodexAdapter = new class extends BaseAdapter {
   displayName = "OpenAI Codex CLI";
   integration = {
     configFilePath: ".codex/config.md",
-    configTemplate: `\u5728\u7F16\u5199\u4EE3\u7801\u524D\uFF0C\u5FC5\u987B\u8C03\u7528 detect\uFF1A
+    configTemplate: `## Spec-Align \u9700\u6C42\u786E\u8BA4\u6D41\u7A0B
+
+\u5728\u7F16\u5199\u4EE3\u7801\u524D\uFF0C\u5FC5\u987B\u6309\u4EE5\u4E0B\u6B65\u9AA4\u6267\u884C\uFF1A
+
+### \u6B65\u9AA4 0\uFF1A\u89E6\u53D1\u68C0\u6D4B
+\`\`\`bash
+spec-thought-align detect --platform openai-codex --files <\u9884\u4F30\u4FEE\u6539\u6587\u4EF6\u6570> --request "<\u7528\u6237\u539F\u59CB\u9700\u6C42>" [--new-feature] [--bug-fix] [--has-detailed-context] [--architecture-change] [--has-ambiguity] [--complexity low|medium|high]
+\`\`\`
+- mode: "require" \u2192 \u5FC5\u987B\u8D70\u6D41\u7A0B
+- mode: "suggest" \u2192 \u8BE2\u95EE\u7528\u6237
+- mode: "skip" \u2192 \u8DF3\u8FC7
+
+### \u6B65\u9AA4 1\uFF1A\u63D0\u4EA4\u5206\u6790
+\u5206\u6790\u9700\u6C42\u65F6\uFF0C\u9010\u6761\u56DE\u7B54\u4E24\u4E2A\u95EE\u9898\uFF1A
+1. \u4E0D\u786E\u5B9A\u68C0\u67E5\uFF1A\u6211\u662F\u4E0D\u662F\u6709\u4E0D\u786E\u5B9A\u7684\u5730\u65B9\uFF0C\u5728\u731C\u6D4B\u7528\u6237\u7684\u610F\u601D\uFF1F\uFF08\u6807\u51FA\u5E76\u4EE5"\u4E0D\u786E\u5B9A\uFF1A"\u5F00\u5934\uFF09
+2. \u5F71\u54CD\u8303\u56F4\u8BC4\u4F30\uFF1A\u4F1A\u4E0D\u4F1A\u4EA7\u751F\u7ED3\u6784\u6027\u53D8\u5316\uFF0C\u5F71\u54CD\u7684\u8303\u56F4\u6709\u54EA\u4E9B\uFF1F\uFF08\u5217\u51FA\u53D7\u5F71\u54CD\u7684\u6587\u4EF6/\u6A21\u5757\uFF09
 
 \`\`\`bash
-spec-thought-align detect --platform openai-codex --files <count>
+spec-thought-align submit --id "<\u4EFB\u52A1\u540D>" --request "<\u7528\u6237\u539F\u59CB\u9700\u6C42>" --analysis "<\u4F60\u7684\u5B8C\u6574\u5206\u6790>" --no-wait
 \`\`\`
 
-\u5982\u679C mode \u4E3A require\uFF0C\u4F7F\u7528 --no-wait \u6A21\u5F0F\uFF1A
+### \u6B65\u9AA4 2\uFF1A\u7B49\u5F85\u786E\u8BA4
 \`\`\`bash
-spec-thought-align submit --id "<\u4EFB\u52A1\u540D>" --request "<\u7528\u6237\u9700\u6C42>" --analysis "<\u5206\u6790>" --no-wait --agent-type generic
-spec-thought-align await-confirm --id "<\u4EFB\u52A1\u540D>"
+spec-thought-align await-confirm --id "<\u4EFB\u52A1\u540D>" --timeout 600
+\`\`\`
+
+### \u6B65\u9AA4 3\uFF1A\u6309\u89C4\u7EA6\u65BD\u5DE5
+\u8FD4\u56DE\u7684 JSON \u662F\u6700\u7EC8\u89C4\u7EA6\uFF0C\u4E25\u683C\u6309\u5B83\u65BD\u5DE5\u3002\u9762\u677F\u4E2D\u7684 questions \u4EE5\u7528\u6237\u6F84\u6E05\u540E\u7684\u56DE\u7B54\u4E3A\u51C6\u3002
+
+### \u6B65\u9AA4 4\uFF1A\u6807\u8BB0\u5B8C\u6210
+\`\`\`bash
+spec-thought-align complete --id "<\u4EFB\u52A1\u540D>" --summary "<\u505A\u4E86\u4EC0\u4E48>"
 \`\`\``,
     detectEnvVars: ["OPENAI_API_KEY"],
     recommendedStrategy: "no-wait",
@@ -2049,16 +2200,39 @@ var genericAdapter = new class extends BaseAdapter {
   name = "generic";
   displayName = "Unknown Agent";
   integration = {
-    configFilePath: "AGENTS.md \u6216\u81EA\u5B9A\u4E49\u914D\u7F6E",
-    configTemplate: `\u5728\u7F16\u5199\u4EE3\u7801\u524D\uFF0C\u8C03\u7528 detect \u5224\u65AD\u662F\u5426\u9700\u8981\u9700\u6C42\u786E\u8BA4\uFF1A
+    configFilePath: "AGENTS.md",
+    configTemplate: `## Spec-Align \u9700\u6C42\u786E\u8BA4\u6D41\u7A0B
+
+\u5728\u7F16\u5199\u4EE3\u7801\u524D\uFF0C\u5FC5\u987B\u6309\u4EE5\u4E0B\u6B65\u9AA4\u6267\u884C\uFF1A
+
+### \u6B65\u9AA4 0\uFF1A\u89E6\u53D1\u68C0\u6D4B
+\`\`\`bash
+spec-thought-align detect --files <\u9884\u4F30\u4FEE\u6539\u6587\u4EF6\u6570> --request "<\u7528\u6237\u539F\u59CB\u9700\u6C42>" [--new-feature] [--bug-fix] [--has-detailed-context] [--architecture-change] [--has-ambiguity] [--complexity low|medium|high]
+\`\`\`
+- mode: "require" \u2192 \u5FC5\u987B\u8D70\u6D41\u7A0B
+- mode: "suggest" \u2192 \u8BE2\u95EE\u7528\u6237
+- mode: "skip" \u2192 \u8DF3\u8FC7
+
+### \u6B65\u9AA4 1\uFF1A\u63D0\u4EA4\u5206\u6790
+\u5206\u6790\u9700\u6C42\u65F6\uFF0C\u9010\u6761\u56DE\u7B54\u4E24\u4E2A\u95EE\u9898\uFF1A
+1. \u4E0D\u786E\u5B9A\u68C0\u67E5\uFF1A\u6211\u662F\u4E0D\u662F\u6709\u4E0D\u786E\u5B9A\u7684\u5730\u65B9\uFF0C\u5728\u731C\u6D4B\u7528\u6237\u7684\u610F\u601D\uFF1F\uFF08\u6807\u51FA\u5E76\u4EE5"\u4E0D\u786E\u5B9A\uFF1A"\u5F00\u5934\uFF09
+2. \u5F71\u54CD\u8303\u56F4\u8BC4\u4F30\uFF1A\u4F1A\u4E0D\u4F1A\u4EA7\u751F\u7ED3\u6784\u6027\u53D8\u5316\uFF0C\u5F71\u54CD\u7684\u8303\u56F4\u6709\u54EA\u4E9B\uFF1F\uFF08\u5217\u51FA\u53D7\u5F71\u54CD\u7684\u6587\u4EF6/\u6A21\u5757\uFF09
 
 \`\`\`bash
-spec-thought-align detect --files <count> [--new-feature] [--architecture-change]
+spec-thought-align submit --id "<\u4EFB\u52A1\u540D>" --request "<\u7528\u6237\u539F\u59CB\u9700\u6C42>" --analysis "<\u4F60\u7684\u5B8C\u6574\u5206\u6790>" --no-wait
 \`\`\`
 
-\u5982\u679C shouldTrigger \u4E3A true\uFF0C\u6267\u884C spec-align \u6D41\u7A0B\uFF1A
+### \u6B65\u9AA4 2\uFF1A\u7B49\u5F85\u786E\u8BA4
 \`\`\`bash
-spec-thought-align submit --id "<\u4EFB\u52A1\u540D>" --request "<\u7528\u6237\u9700\u6C42>" --analysis "<\u5206\u6790>" --no-wait
+spec-thought-align await-confirm --id "<\u4EFB\u52A1\u540D>" --timeout 600
+\`\`\`
+
+### \u6B65\u9AA4 3\uFF1A\u6309\u89C4\u7EA6\u65BD\u5DE5
+\u8FD4\u56DE\u7684 JSON \u662F\u6700\u7EC8\u89C4\u7EA6\uFF0C\u4E25\u683C\u6309\u5B83\u65BD\u5DE5\u3002
+
+### \u6B65\u9AA4 4\uFF1A\u6807\u8BB0\u5B8C\u6210
+\`\`\`bash
+spec-thought-align complete --id "<\u4EFB\u52A1\u540D>" --summary "<\u505A\u4E86\u4EC0\u4E48>"
 \`\`\``,
     detectEnvVars: [],
     recommendedStrategy: "no-wait",
@@ -2171,6 +2345,70 @@ function generateQuickId(text) {
   return slug ? `quick-${slug}-${timestamp}` : `quick-${timestamp}`;
 }
 
+// packages/cli/src/commands/setup.ts
+import { Command as Command14 } from "commander";
+import chalk10 from "chalk";
+import fs3 from "node:fs";
+import path3 from "node:path";
+import os from "node:os";
+var CONFIG_PATHS = {
+  opencode: { relPath: ".config/opencode/AGENTS.md", isGlobal: true },
+  cursor: { relPath: ".cursorrules", isGlobal: false },
+  "claude-code": { relPath: "CLAUDE.md", isGlobal: false },
+  windsurf: { relPath: ".windsurfrules", isGlobal: false },
+  aider: { relPath: "CONVENTIONS.md", isGlobal: false },
+  "gemini-cli": { relPath: ".gemini/settings.json", isGlobal: false },
+  "openai-codex": { relPath: ".codex/config.md", isGlobal: false },
+  generic: { relPath: "AGENTS.md", isGlobal: false }
+};
+function resolveConfigPath(platformId) {
+  const cfg = CONFIG_PATHS[platformId] ?? CONFIG_PATHS.generic;
+  if (cfg.isGlobal) {
+    return path3.join(os.homedir(), cfg.relPath);
+  }
+  return path3.join(process.cwd(), cfg.relPath);
+}
+function ensureDir2(filePath) {
+  const dir = path3.dirname(filePath);
+  if (!fs3.existsSync(dir)) {
+    fs3.mkdirSync(dir, { recursive: true });
+  }
+}
+function createSetupCommand() {
+  const cmd = new Command14("setup").description("\u81EA\u52A8\u68C0\u6D4B\u5E73\u53F0\u5E76\u5C06 spec-align \u89C4\u5219\u5199\u5165\u914D\u7F6E\u6587\u4EF6").option("--platform <id>", "\u6307\u5B9A\u76EE\u6807\u5E73\u53F0\uFF08\u9ED8\u8BA4\u81EA\u52A8\u68C0\u6D4B\uFF09").option("--dry-run", "\u9884\u89C8\u914D\u7F6E\u5185\u5BB9\u800C\u4E0D\u5199\u5165\u6587\u4EF6").option("-f, --force", "\u5F3A\u5236\u8986\u76D6\u5DF2\u5B58\u5728\u7684\u914D\u7F6E\u6587\u4EF6").option("--no-open", "\u5199\u5165\u540E\u4E0D\u6253\u5F00\u914D\u7F6E\u9762\u677F").action(async (options) => {
+    const adapter = options.platform ? resolveAdapter(options.platform) : resolveAdapter();
+    if (!adapter || adapter.id === "generic") {
+      console.log(chalk10.yellow("\u26A0 \u672A\u68C0\u6D4B\u5230\u5DF2\u77E5 Agent \u5E73\u53F0\uFF0C\u5C06\u4F7F\u7528\u901A\u7528\u6A21\u677F"));
+      console.log(chalk10.dim("  \u53EF\u7528 --platform \u6307\u5B9A: " + listAdapters().map((a) => a.id).join(", ")));
+      console.log();
+    }
+    const configPath = resolveConfigPath(adapter.id);
+    const template = adapter.integration.configTemplate;
+    if (options.dryRun) {
+      console.log(chalk10.blue(`\u{1F4CB} ${adapter.displayName} \u914D\u7F6E\u9884\u89C8`));
+      console.log(chalk10.dim(`  \u76EE\u6807\u6587\u4EF6: ${configPath}`));
+      console.log(chalk10.dim("  ---BEGIN---"));
+      console.log(template);
+      console.log(chalk10.dim("  ---END---"));
+      return;
+    }
+    if (fs3.existsSync(configPath) && !options.force) {
+      console.log(chalk10.yellow(`\u26A0 \u914D\u7F6E\u6587\u4EF6\u5DF2\u5B58\u5728: ${configPath}`));
+      console.log(chalk10.dim("  \u4F7F\u7528 --force \u5F3A\u5236\u8986\u76D6\uFF0C\u6216 --dry-run \u9884\u89C8\u5185\u5BB9"));
+      return;
+    }
+    ensureDir2(configPath);
+    fs3.writeFileSync(configPath, template, "utf-8");
+    console.log(chalk10.green(`\u2705 \u5DF2\u5199\u5165 ${adapter.displayName} \u914D\u7F6E`));
+    console.log(chalk10.dim(`  \u6587\u4EF6: ${configPath}`));
+    console.log();
+    if (adapter.id === "opencode") {
+      console.log(chalk10.cyan("\u{1F4A1} \u63D0\u793A: \u91CD\u542F opencode \u4EE5\u52A0\u8F7D\u65B0\u89C4\u5219"));
+    }
+  });
+  return cmd;
+}
+
 // packages/cli/src/index.ts
 var KNOWN_COMMANDS = [
   "submit",
@@ -2186,6 +2424,7 @@ var KNOWN_COMMANDS = [
   "__serve",
   "detect",
   "quick",
+  "setup",
   "--help",
   "-h",
   "--version",
@@ -2218,7 +2457,7 @@ function tryQuickSugar() {
   process.argv = merged;
   return true;
 }
-var program = new Command14();
+var program = new Command15();
 program.name("spec-thought-align").description("AI Coding Agent \u65BD\u5DE5\u524D\u7684\u9700\u6C42\u89C4\u7EA6\u53EF\u89C6\u5316\u786E\u8BA4\u9762\u677F").version("0.1.0");
 program.addCommand(createSubmitCommand());
 program.addCommand(createFetchCommand());
@@ -2232,6 +2471,7 @@ program.addCommand(createAwaitConfirmCommand());
 program.addCommand(createConfigCommand());
 program.addCommand(createDetectCommand());
 program.addCommand(createQuickCommand());
+program.addCommand(createSetupCommand());
 program.addCommand(createServeCommand(), { hidden: true });
 tryQuickSugar();
 program.parse(process.argv);
