@@ -1,4 +1,11 @@
-# 🎯 Spec-Align
+一些闲聊：
+嘿，朋友们，我是一个新入门的创作者，在我使用agent的过程中，常因为没有提清晰我的需求，ai也没有完全理解我的需求就开始揣测着行动，所以我开发了这个spec-thought-align工具，减少人与ai对话中的信息丢失。希望能够帮到你
+这里是一些二次开发的建议：
+1.为了保障普适性，当前仍然为半硬约束型，工具不一定稳定触发，你可以选择将其直接改造为你使用的agent的skill，来保障硬约束。也可以通过spec-thought-align"你的需求"，来触发
+2.现在是只记录当前次与前2次的需求评审面板，可以根据需求增加记录次数或者自动保存功能来满足长期的维护
+3.如果需要agent卡死等待环节，可以尝试修改为发出需求后直接结束本次任务，你将相关信息确认后，再让你的agent继续工作，以此解决部分agent存在超时的问题
+4.可以将其包装为单独的软件或者单独板块的悬浮窗来便于你开发，来解决浏览器多次跳转的问题
+# 🎯 spec-thought-align
 
 > AI Coding Agent 施工前的「需求评审」面板 —— 让 Agent 把思考摊开，确认无误再动工。
 
@@ -13,7 +20,38 @@
            这里缺了一个「需求评审」环节
 ```
 
-**Spec-Align** 在你和 Agent 之间插入一个可视化确认层：
+**spec-thought-align** 在你和 Agent 之间插入一个可视化确认层：
+
+```
+用户说需求 → Agent 分析 → [📋 可视化确认面板] → 按规约施工 ✅
+                              ↑
+                        你在这里介入：
+                        - 看看 Agent 理解对了没
+                        - 标红的地方补充细节
+                        - 回答待澄清的问题
+                        - 点确认，Agent 严格按你的意思来
+```
+
+## 3 步上手
+
+```bash
+# 1. Agent 提交它的理解（自然语言，不需要特殊格式）
+# 🎯 spec-thought-align
+
+> AI Coding Agent 施工前的「需求评审」面板 —— 让 Agent 把思考摊开，确认无误再动工。
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](package.json)
+
+## 解决的问题
+
+```
+用户说需求 → Agent 自己理解 → 直接开工 → 返工 😫
+                  ↑
+           这里缺了一个「需求评审」环节
+```
+
+**spec-thought-align** 在你和 Agent 之间插入一个可视化确认层：
 
 ```
 用户说需求 → Agent 分析 → [📋 可视化确认面板] → 按规约施工 ✅
