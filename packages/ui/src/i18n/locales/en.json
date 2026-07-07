@@ -59,5 +59,10 @@
   "anyAdditionalNotes": "Any additional notes...",
   "architectureDesc": "Architecture description...",
   "saveFailed": "Save failed, data rolled back",
-  "switchFloat": "Switch to float window"
+  "switchFloat": "Switch to float window",
+  "architectureDiagram": "Architecture Diagram",
+  "componentTree": "Component Tree",
+  "dependsOn": "Depends on",
+  "files": "Files",
+  "noComponents": "No components"
 }

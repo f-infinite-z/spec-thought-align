@@ -2379,7 +2379,11 @@ function createSetupCommand() {
     const adapter = options.platform ? resolveAdapter(options.platform) : resolveAdapter();
     if (!adapter || adapter.id === "generic") {
       console.log(chalk10.yellow("\u26A0 \u672A\u68C0\u6D4B\u5230\u5DF2\u77E5 Agent \u5E73\u53F0\uFF0C\u5C06\u4F7F\u7528\u901A\u7528\u6A21\u677F"));
-      console.log(chalk10.dim("  \u53EF\u7528 --platform \u6307\u5B9A: " + listAdapters().map((a) => a.id).join(", ")));
+      console.log(
+        chalk10.dim(
+          "  \u53EF\u7528 --platform \u6307\u5B9A: " + listAdapters().map((a) => a.id).join(", ")
+        )
+      );
       console.log();
     }
     const configPath = resolveConfigPath(adapter.id);

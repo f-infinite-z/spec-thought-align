@@ -59,5 +59,10 @@
   "anyAdditionalNotes": "任何需要补充的内容...",
   "architectureDesc": "架构说明...",
   "saveFailed": "保存失败，数据已回滚",
-  "switchFloat": "切换为悬浮窗"
+  "switchFloat": "切换为悬浮窗",
+  "architectureDiagram": "架构图",
+  "componentTree": "组件树",
+  "dependsOn": "依赖",
+  "files": "文件",
+  "noComponents": "无组件定义"
 }

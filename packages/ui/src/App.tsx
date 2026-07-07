@@ -23,6 +23,8 @@ import { EditableText } from '@/components/EditableText';
 import { EditableList } from '@/components/EditableList';
 import { AssumptionsList } from '@/components/AssumptionsList';
 import { QuestionsList } from '@/components/QuestionsList';
+import { ArchitectureDiagram } from '@/components/ArchitectureDiagram';
+import { ComponentsTree } from '@/components/ComponentsTree';
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -311,15 +313,31 @@ export default function App() {
                       readOnly={isReadOnly}
                     />
                   </div>
-                  <EditableList
-                    label={t('techStack')}
-                    items={spec.plan.techStack}
-                    color="blue"
-                    onChange={(v) => updateField('plan.techStack', v)}
-                    readOnly={isReadOnly}
-                  />
+                  <ArchitectureDiagram architecture={spec.plan.architecture} />
+                  <div className="mt-3">
+                    <EditableList
+                      label={t('techStack')}
+                      items={spec.plan.techStack}
+                      color="blue"
+                      onChange={(v) => updateField('plan.techStack', v)}
+                      readOnly={isReadOnly}
+                    />
+                  </div>
                 </CardContent>
               </Card>
+
+              {spec.plan.components && spec.plan.components.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-primary text-xs">
+                      {t('componentTree')} ({spec.plan.components.length})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ComponentsTree components={spec.plan.components} />
+                  </CardContent>
+                </Card>
+              )}
 
               <Card>
                 <CardHeader className="pb-2">
