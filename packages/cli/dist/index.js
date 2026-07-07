@@ -34,10 +34,28 @@ function createEmptySpec(id, request, analysis, agentType) {
     userAdditions: { notes: "", fieldEdits: [] }
   };
 }
-var STORAGE_DIR, INPUT_FILE, SPEC_FILE, STATUS_FILE, TASKS_FILE, RESULT_FILE, EXIT_CODES, DEFAULT_TIMEOUT_SECONDS, POLL_INTERVAL_MS;
+var DEFAULT_CONFIG, STORAGE_DIR, INPUT_FILE, SPEC_FILE, STATUS_FILE, TASKS_FILE, RESULT_FILE, EXIT_CODES, DEFAULT_TIMEOUT_SECONDS, POLL_INTERVAL_MS;
 var init_constants = __esm({
   "packages/shared/src/constants.ts"() {
     "use strict";
+    DEFAULT_CONFIG = {
+      server: {
+        port: 5678,
+        host: "127.0.0.1"
+      },
+      storage: {
+        path: ".spec-thought-align"
+      },
+      llm: {
+        provider: "openai",
+        enabled: false,
+        baseUrl: "https://api.openai.com/v1",
+        model: "gpt-4o-mini"
+      },
+      ui: {
+        autoOpen: true
+      }
+    };
     STORAGE_DIR = ".spec-thought-align";
     INPUT_FILE = "input.json";
     SPEC_FILE = "spec.json";
@@ -1219,20 +1237,88 @@ function createCompleteCommand() {
 }
 
 // packages/cli/src/commands/config.ts
+init_src();
 import { Command as Command6 } from "commander";
 import chalk5 from "chalk";
+import fs3 from "node:fs";
+import path3 from "node:path";
+import os from "node:os";
+var CONFIG_DIR = path3.join(os.homedir(), ".spec-thought-align");
+var CONFIG_FILE = path3.join(CONFIG_DIR, "config.json");
+function readConfig() {
+  try {
+    const raw = fs3.readFileSync(CONFIG_FILE, "utf-8");
+    return { ...DEFAULT_CONFIG, ...JSON.parse(raw) };
+  } catch {
+    return { ...DEFAULT_CONFIG };
+  }
+}
+function writeConfig(cfg) {
+  fs3.mkdirSync(CONFIG_DIR, { recursive: true });
+  fs3.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2), "utf-8");
+}
+function setNested(obj, keyPath, value) {
+  const keys = keyPath.split(".");
+  const last = keys.pop();
+  let current = obj;
+  for (const k of keys) {
+    if (!current[k] || typeof current[k] !== "object") {
+      current[k] = {};
+    }
+    current = current[k];
+  }
+  const old = current[last];
+  if (typeof old === "number") {
+    current[last] = Number(value);
+  } else if (typeof old === "boolean") {
+    current[last] = value === "true";
+  } else {
+    current[last] = value;
+  }
+}
+function formatValue(v) {
+  if (v === void 0 || v === null) return chalk5.gray("(not set)");
+  if (typeof v === "boolean") return v ? chalk5.green("true") : chalk5.red("false");
+  if (typeof v === "number") return chalk5.yellow(String(v));
+  if (typeof v === "string") return chalk5.cyan(v);
+  return String(v);
+}
+function printConfig(cfg) {
+  const keys = [
+    { key: "server.port", value: cfg.server.port },
+    { key: "server.host", value: cfg.server.host },
+    { key: "storage.path", value: cfg.storage.path },
+    { key: "llm.enabled", value: cfg.llm.enabled },
+    { key: "llm.provider", value: cfg.llm.provider },
+    { key: "llm.model", value: cfg.llm.model },
+    { key: "llm.baseUrl", value: cfg.llm.baseUrl },
+    { key: "llm.apiKey", value: cfg.llm.apiKey ? "***" : null },
+    { key: "ui.autoOpen", value: cfg.ui.autoOpen }
+  ];
+  for (const { key, value } of keys) {
+    const padded = key.padEnd(20);
+    console.log(`  ${chalk5.gray(padded)} ${formatValue(value)}`);
+  }
+  console.log();
+  console.log(chalk5.dim(`  \u914D\u7F6E\u6587\u4EF6: ${CONFIG_FILE}`));
+}
 function createConfigCommand() {
-  const cmd = new Command6("config").description("\u67E5\u770B\u6216\u4FEE\u6539\u914D\u7F6E");
+  const cmd = new Command6("config").description("\u67E5\u770B\u6216\u4FEE\u6539\u5168\u5C40\u914D\u7F6E");
   cmd.command("show").description("\u67E5\u770B\u5F53\u524D\u914D\u7F6E").action(() => {
-    console.log(chalk5.blue("\u2699\uFE0F  \u5F53\u524D\u914D\u7F6E"));
-    console.log(chalk5.yellow("\u26A0\uFE0F  Phase 1 \u5B9E\u73B0"));
+    const cfg = readConfig();
+    console.log(chalk5.blue("\u2699\uFE0F  Spec-Align \u5168\u5C40\u914D\u7F6E\n"));
+    printConfig(cfg);
   });
-  cmd.command("set <key> <value>").description("\u8BBE\u7F6E\u914D\u7F6E\u9879").action((key, value) => {
-    console.log(chalk5.blue(`\u2699\uFE0F  \u8BBE\u7F6E ${key} = ${value}`));
-    console.log(chalk5.yellow("\u26A0\uFE0F  Phase 2 \u5B9E\u73B0"));
+  cmd.command("set <key> <value>").description("\u8BBE\u7F6E\u914D\u7F6E\u9879\uFF08\u5982 server.port=3000\uFF09").action((key, value) => {
+    const cfg = readConfig();
+    setNested(cfg, key, value);
+    writeConfig(cfg);
+    console.log(chalk5.green(`\u2705 \u5DF2\u8BBE\u7F6E ${chalk5.cyan(key)} = ${chalk5.yellow(value)}`));
   });
   cmd.command("reset").description("\u91CD\u7F6E\u4E3A\u9ED8\u8BA4\u914D\u7F6E").action(() => {
-    console.log(chalk5.blue("\u2699\uFE0F  \u91CD\u7F6E\u914D\u7F6E"));
+    writeConfig({ ...DEFAULT_CONFIG });
+    console.log(chalk5.green("\u2705 \u5DF2\u91CD\u7F6E\u4E3A\u9ED8\u8BA4\u914D\u7F6E"));
+    printConfig(DEFAULT_CONFIG);
   });
   return cmd;
 }
@@ -2348,9 +2434,9 @@ function generateQuickId(text) {
 // packages/cli/src/commands/setup.ts
 import { Command as Command14 } from "commander";
 import chalk10 from "chalk";
-import fs3 from "node:fs";
-import path3 from "node:path";
-import os from "node:os";
+import fs4 from "node:fs";
+import path4 from "node:path";
+import os2 from "node:os";
 var CONFIG_PATHS = {
   opencode: { relPath: ".config/opencode/AGENTS.md", isGlobal: true },
   cursor: { relPath: ".cursorrules", isGlobal: false },
@@ -2364,14 +2450,14 @@ var CONFIG_PATHS = {
 function resolveConfigPath(platformId) {
   const cfg = CONFIG_PATHS[platformId] ?? CONFIG_PATHS.generic;
   if (cfg.isGlobal) {
-    return path3.join(os.homedir(), cfg.relPath);
+    return path4.join(os2.homedir(), cfg.relPath);
   }
-  return path3.join(process.cwd(), cfg.relPath);
+  return path4.join(process.cwd(), cfg.relPath);
 }
 function ensureDir2(filePath) {
-  const dir = path3.dirname(filePath);
-  if (!fs3.existsSync(dir)) {
-    fs3.mkdirSync(dir, { recursive: true });
+  const dir = path4.dirname(filePath);
+  if (!fs4.existsSync(dir)) {
+    fs4.mkdirSync(dir, { recursive: true });
   }
 }
 function createSetupCommand() {
@@ -2396,13 +2482,13 @@ function createSetupCommand() {
       console.log(chalk10.dim("  ---END---"));
       return;
     }
-    if (fs3.existsSync(configPath) && !options.force) {
+    if (fs4.existsSync(configPath) && !options.force) {
       console.log(chalk10.yellow(`\u26A0 \u914D\u7F6E\u6587\u4EF6\u5DF2\u5B58\u5728: ${configPath}`));
       console.log(chalk10.dim("  \u4F7F\u7528 --force \u5F3A\u5236\u8986\u76D6\uFF0C\u6216 --dry-run \u9884\u89C8\u5185\u5BB9"));
       return;
     }
     ensureDir2(configPath);
-    fs3.writeFileSync(configPath, template, "utf-8");
+    fs4.writeFileSync(configPath, template, "utf-8");
     console.log(chalk10.green(`\u2705 \u5DF2\u5199\u5165 ${adapter.displayName} \u914D\u7F6E`));
     console.log(chalk10.dim(`  \u6587\u4EF6: ${configPath}`));
     console.log();
