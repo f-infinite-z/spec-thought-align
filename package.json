@@ -1,6 +1,6 @@
 {
   "name": "spec-thought-align",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "AI Coding Agent 施工前的需求规约可视化确认面板",
   "license": "MIT",
